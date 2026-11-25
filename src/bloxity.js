@@ -289,6 +289,19 @@ export function onAdBreak(fn) {
   return () => adBreakListeners.delete(fn)
 }
 
+// Boxity's friend toasts ("X joined you"): playerInRoom for players already there when we joined,
+// playerJoined for the ones who arrive later. Non-friends produce nothing.
+export function reportPlayer(name, alreadyThere) {
+  try {
+    const g = sdk()?.game
+    if (!name) return
+    if (alreadyThere) g?.playerInRoom?.(name)
+    else g?.playerJoined?.(name)
+  } catch {
+    // Cosmetic.
+  }
+}
+
 // The API host Boxity told us (never guessed from the page).
 export function apiUrl() {
   try {

@@ -14,6 +14,7 @@ import { serializeLook } from './avatar/look.js'
 export const net = {
   room: null,
   connected: false,
+  connectedAt: 0, // performance.now() when the room was joined (who was already there)
   sessionId: '',
 }
 const handlers = new Map() // type -> Set(fn)
@@ -49,6 +50,7 @@ const TYPES = ['hit', 'botHit', 'act', 'botAct', 'fx', 'bots', 'feed', 'kill', '
 function attach(room) {
   net.room = room
   net.connected = true
+  net.connectedAt = performance.now()
   net.sessionId = room.sessionId
   for (const type of TYPES) room.onMessage(type, (msg) => handlers.get(type)?.forEach((fn) => fn(msg)))
   room.onLeave(() => {

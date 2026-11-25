@@ -5,6 +5,7 @@ This repo started as the empty Bowling Roll / boat-race base (player, physics, c
 
 ## Current rules (these override older wording further down)
 - **Progress is saved only on the backend.** No localStorage: `state.js` is in-memory, `sync.js` sends every change (all of `state`, volumes included) and the server's `progress` replaces it on joining (`noProgress new` uploads what was earned so far this page). A guest, or a session that cannot reach the server, keeps progress for the page only.
+- **The game's Boxity id is `18-kit-pvp`** (`GAME_SLUG` in config.js = the repos' `LEGION_GAME_ID` = bloxity.io/g/18-kit-pvp). `kit-pvp` is ANOTHER game: using it sent the matchmaker, room directory, boards and token checks to that game (no Open Rooms, boards or in-game player list for ours). Roster players are also reported with `game.playerJoined/playerInRoom` (friend toasts).
 - **There are no bots.** No lobby players, no arena bots, no Duels practice bot: the arena and duels are real players only (a lone player fights nobody). `arena/bots.js` survives only as the engine for the Necromancer's zombies (summons, `target: 0` fighters), simulated by the host / the duel's local manager. Mentions of bots, `COMBAT.bots.count`, `NET.minBots`, `lobby/bots.js` or Duels practice below are history.
 
 ## Boxity platform features (all in `src/bloxity.js` + `main.js`; decisions in `BLOXITY_CODE_METADATA.md`)

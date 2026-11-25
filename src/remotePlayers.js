@@ -17,7 +17,7 @@ import { net, roster } from './net.js'
 import { powerOf } from './arena/abilities.js'
 import { weaponFor } from './arena/weapons.js'
 import * as sfx from './audio.js'
-import { apiUrl, attachBubble } from './bloxity.js'
+import { apiUrl, attachBubble, reportPlayer } from './bloxity.js'
 import { buildDefaultCharacter, loadBaseCharacter } from './avatar/character.js'
 import { applyProportions, attachEquippedAccessories } from './avatar/loader.js'
 import { disposeAnimator, makeAnimator } from './avatar/animator.js'
@@ -247,6 +247,7 @@ export function createRemotePlayers(scene, { fire } = {}) {
     setRig(r, plain, captureShared(plain), null)
     look(r, p)
     players.set(id, r)
+    reportPlayer(p.name, performance.now() - net.connectedAt < 3000) // friend join toasts
     return r
   }
   function remove(id) {
