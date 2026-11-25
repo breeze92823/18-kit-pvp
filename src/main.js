@@ -24,7 +24,7 @@ import { disposeAnimator, makeAnimator } from './avatar/animator.js'
 import { EmotePlayer, emoteById, loadEmotes } from './avatar/emotes.js'
 import { createHud } from './hud/hud.js'
 import { createViewmodel } from './viewmodel.js'
-import { addXp, addGold, changed, dailyStatus, giveItem, state } from './state.js'
+import { addXp, addGold, changed, dailyStatus, giveItem, onChange, state } from './state.js'
 import { roll } from './crates.js'
 import { artURL } from './lobby/pixelart.js'
 import * as sfx from './audio.js'
@@ -488,7 +488,8 @@ window.addEventListener('blur', () => {
   combat.rightUp()
   combat.abilityUp()
 })
-// touch: a quick tap on the world talks to whatever is under the finger
+// touch: a quick tap on the world talks to whatever is under the finger; in a fight
+// (arena / duel) a tap that finds nothing to talk to is a hit, like tapping a mob
 const taps = new Map()
 window.addEventListener('pointerdown', (e) => {
   if (e.pointerType !== 'mouse') taps.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() })
@@ -499,6 +500,11 @@ window.addEventListener('pointerup', (e) => {
   if (!t || hud.isOpen()) return
   if (performance.now() - t.t > 260 || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 12) return
   if (!(e.target instanceof Element) || !e.target.closest('.touch-zone')) return
+  if (zone === 'arena' || zone === 'duel') {
+    combat.press()
+    combat.release()
+    return
+  }
   interactAtScreen(e.clientX, e.clientY)
 })
 
@@ -519,6 +525,7 @@ touchControls = installTouch({
   abilityDown: () => !hud.isOpen() && combat.abilityDown(),
   abilityUp: () => combat.abilityUp(),
 })
+onChange(() => touchControls.setMoveStyle(state.settings.dpad ? 'dpad' : 'stick'))
 const syncTouch = () => hud.setTouch(document.body.classList.contains('touch-ui'))
 new MutationObserver(syncTouch).observe(document.body, { attributes: true, attributeFilter: ['class'] })
 syncTouch()

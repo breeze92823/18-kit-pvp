@@ -19,6 +19,7 @@ import {
 } from 'three'
 import { ARENA_SKY, FOG, LIGHT, TIME_OF_DAY } from './config.js'
 import { mulberry32 } from './textures.js'
+import { installShadowCache } from './shadowCache.js'
 
 // All scene lighting, blended between two moods (TIME_OF_DAY.day / .night):
 //  - a gradient sky shader with a sun/moon disc and glow
@@ -115,6 +116,36 @@ export function createLighting(scene, renderer, preset) {
   sun.shadow.bias = -0.0004
   sun.shadow.normalBias = 0.03
   scene.add(hemi, sun, sun.target)
+  // the voxel worlds' shadows are drawn once and reused (shadowCache.js); the box below moves rarely
+  const shadowCache = installShadowCache(renderer, scene, sun)
+  // Shadow box placement: it stays where it is until the player drifts SHADOW_DRIFT m from its
+  // centre (so the cached static shadows stay valid), and its centre is snapped to whole shadow
+  // texels in the sun's view, so static shadow edges never crawl when it moves.
+  const SHADOW_DRIFT = 2
+  const shadowCenter = new Vector3(Infinity, 0, 0)
+  const lastSunDir = new Vector3()
+  let lastTexel = 0
+  const UP = new Vector3(0, 1, 0)
+  const bx = new Vector3()
+  const by = new Vector3()
+  function placeSun(focus) {
+    const texel = (2 * LIGHT.shadowRange) / sun.shadow.mapSize.x
+    if (shadowCenter.distanceToSquared(focus) > SHADOW_DRIFT * SHADOW_DRIFT || !dir.equals(lastSunDir) || texel !== lastTexel) {
+      // the shadow camera's basis (Object3D.lookAt from the sun towards the target, up = +Y)
+      bx.crossVectors(UP, dir)
+      if (bx.lengthSq() < 1e-8) bx.set(1, 0, 0)
+      bx.normalize()
+      by.crossVectors(dir, bx)
+      const px = focus.dot(bx)
+      const py = focus.dot(by)
+      shadowCenter.copy(focus).addScaledVector(bx, Math.round(px / texel) * texel - px).addScaledVector(by, Math.round(py / texel) * texel - py)
+      lastSunDir.copy(dir)
+      lastTexel = texel
+    }
+    sun.position.copy(shadowCenter).addScaledVector(dir, 90)
+    sun.target.position.copy(shadowCenter)
+    sun.target.updateMatrixWorld()
+  }
 
   // --- Image-based lighting: bake the sky into an environment map ---
   const pmrem = new PMREMGenerator(renderer)
@@ -195,6 +226,7 @@ export function createLighting(scene, renderer, preset) {
   return {
     sun,
     addLamp,
+    shadowCache, // { enabled, invalidate() }
     isNight: () => target === 1,
     // Blend to the arena's starry void (on) or back to the lobby sky; instant while faded out.
     setVoid(on, instant = false) {
@@ -242,9 +274,7 @@ export function createLighting(scene, renderer, preset) {
       sky.position.set(focus.x, focus.y, focus.z)
       stars.position.copy(sky.position)
       voidStars.position.copy(sky.position)
-      sun.position.set(focus.x + dir.x * 90, focus.y + dir.y * 90, focus.z + dir.z * 90)
-      sun.target.position.set(focus.x, focus.y, focus.z)
-      sun.target.updateMatrixWorld()
+      placeSun(focus)
     },
   }
 }

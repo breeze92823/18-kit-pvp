@@ -94,6 +94,7 @@ export function createHud(ctx) {
     e.addEventListener('pointerdown', (ev) => {
       ev.preventDefault()
       ev.stopPropagation()
+      root.classList.remove('menu-open')
       togglePanel(b.id)
     })
     e.addEventListener('pointerenter', (ev) => ev.pointerType === 'mouse' && sfx.uiHover())
@@ -101,10 +102,37 @@ export function createHud(ctx) {
     btns[b.id] = e
   }
   root.appendChild(menu)
+  // portrait touch screens: the menu squares fold behind this one button (top of the
+  // right-hand column) so they never sit over the view; it carries their "!" alerts
+  const more = el('button', 'hud-btn hud-more', '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg><span class="alert">!</span>')
+  more.type = 'button'
+  more.setAttribute('aria-label', 'Menu')
+  more.style.setProperty('--c', 'rgba(20, 20, 20, 0.32)')
+  more.style.setProperty('--d', 'rgba(0, 0, 0, 0.25)')
+  more.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    root.classList.toggle('menu-open')
+    sfx.uiClick?.()
+  })
+  root.appendChild(more)
 
   // --- scoreboard ---
   const board = el('div', 'hud-board hud-outline')
   root.appendChild(board)
+  // touch screens: the board starts folded to just its title (so it never covers the view);
+  // tapping the title opens / folds it
+  let boardOpen = false
+  const boardFolded = () => root.classList.contains('touch') && !boardOpen
+  const foldBoard = () => board.classList.toggle('folded', boardFolded())
+  board.addEventListener('pointerdown', (e) => {
+    if (!root.classList.contains('touch') || !e.target.closest?.('.title')) return
+    e.preventDefault()
+    e.stopPropagation()
+    boardOpen = boardFolded()
+    foldBoard()
+    sfx.uiClick?.()
+  })
   function renderBoard() {
     const need = xpForLevel(state.level)
     const filled = Math.round((state.xp / need) * 10)
@@ -125,6 +153,7 @@ export function createHud(ctx) {
     ]
     board.innerHTML = `<div class="title">Kit PvP</div>${rows.map(([h, n]) => `<div class="row"><span>${h}</span><span class="n">${n}</span></div>`).join('')}`
     board.classList.toggle('hidden', !state.settings.scoreboard)
+    foldBoard()
   }
 
   // --- bottom: bars + hotbar ---
@@ -568,6 +597,14 @@ export function createHud(ctx) {
           changed()
         }),
       )
+      if (root.classList.contains('touch')) {
+        pBody.append(
+          seg('Move with', [[false, 'Joystick'], [true, 'D-pad']], !!state.settings.dpad, (v) => {
+            state.settings.dpad = v
+            changed()
+          }),
+        )
+      }
       const c = el('div', 'hud-center')
       c.appendChild(button('hud-big-btn gray', 'Back to spawn', () => {
         closePanel()
@@ -643,6 +680,7 @@ export function createHud(ctx) {
     renderHotbar()
     btns.reward.classList.toggle('alerting', dailyStatus().ready)
     btns.shop.classList.toggle('alerting', !state.seen.shop)
+    more.classList.toggle('alerting', Object.values(btns).some((b) => b.classList.contains('alerting')))
     kits.refresh()
     if (open) {
       pGold.innerHTML = `${coinImg()}${fmt(state.gold)}`
@@ -661,9 +699,26 @@ export function createHud(ctx) {
     }
     root.style.setProperty('--top-safe', `${bottomOfTop}px`)
     root.style.setProperty('--right-safe', `${bottomOfRight}px`)
+    // the touch controls (touch.css) live outside #hud: they read these from :root
+    const doc = document.documentElement.style
+    doc.setProperty('--hud-top-safe', `${bottomOfTop}px`)
+    doc.setProperty('--hud-right-safe', `${bottomOfRight}px`)
     root.classList.toggle('portrait', h > w * 1.15)
+    if (!root.classList.contains('portrait')) root.classList.remove('menu-open')
     root.classList.toggle('compact', !(h > w * 1.15) && (h <= 520 || w < 760))
+    foldBoard()
+    placeControls()
   }
+  // portrait touch: the hotbar sits on the bottom edge and the controls stand on top of it
+  function placeControls() {
+    let lift = 0
+    if (root.classList.contains('touch') && root.classList.contains('portrait')) {
+      const r = bottom.getBoundingClientRect()
+      if (r.height > 0) lift = Math.max(0, Math.round(window.innerHeight - r.top))
+    }
+    document.documentElement.style.setProperty('--hud-ctl-b', `${lift}px`)
+  }
+  new ResizeObserver(placeControls).observe(bottom)
   let lastAreas = []
   window.addEventListener('resize', () => layout(lastAreas))
   ctx.onReservedAreas?.((a) => {
@@ -707,6 +762,8 @@ export function createHud(ctx) {
     setTouch(on) {
       root.classList.toggle('touch', on)
       promptText = null
+      foldBoard()
+      placeControls()
     },
     setCrosshair(on) {
       cross.style.display = on ? '' : 'none'

@@ -157,12 +157,17 @@ export function buildLeaderboards(anchor) {
     g.add(plane)
   }
   g.position.set(anchor.x, anchor.y, anchor.z)
-  let shown = ''
+  // Redraw (1024x760 canvas + texture upload + mipmaps) only the boards whose visible text
+  // changed: raw values like playtime seconds change every tick but show as "Xh Ym".
+  const shown = {}
   g.userData.setBoards = (data, sub = 'All Time') => {
-    const key = JSON.stringify(data) + sub
-    if (key === shown) return
-    shown = key
-    for (const stat of Object.keys(textures)) textures[stat].userData.setRows(toRows(stat, data?.[stat]), sub)
+    for (const stat of Object.keys(textures)) {
+      const rows = toRows(stat, data?.[stat])
+      const key = JSON.stringify(rows) + sub
+      if (shown[stat] === key) continue
+      shown[stat] = key
+      textures[stat].userData.setRows(rows, sub)
+    }
   }
   return g
 }

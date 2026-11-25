@@ -1104,23 +1104,185 @@
   width: 62vw;
   font-size: 11px;
 }
+/* --- touch screens: block-game phone layout ------------------------------------------
+   Landscape: menu squares in a row at the top-right (left of the touch utilities), hotbar +
+   bars bottom-centre between the movement pad and the action buttons, scoreboard small on
+   the right (tap its title to fold it), chat feed left-middle.
+   Portrait: menu squares in a row at the top-left, utilities in a column top-right, hotbar on
+   the bottom edge with the bars above it and the touch controls standing on top of it
+   (hud.js publishes its height as --hud-ctl-b), scoreboard folded under the utilities. */
+#hud.touch {
+  --tb: 44px; /* matches touch.css */
+  --tgap: 6px;
+  --tpad: clamp(10px, 2.6vmin, 22px);
+  --mbtn: 46px;
+}
+#hud.touch .hud-menu {
+  left: auto;
+  right: calc(var(--tpad) + 3 * var(--tb) + 2 * var(--tgap) + 8px + env(safe-area-inset-right, 0px));
+  top: calc(max(env(safe-area-inset-top, 0px), var(--right-safe)) + var(--tpad));
+  grid-template-columns: repeat(5, var(--mbtn));
+  gap: var(--tgap);
+}
+#hud.touch .hud-btn {
+  width: var(--mbtn);
+  height: var(--mbtn);
+  border-radius: 8px;
+  box-shadow: inset 0 -4px 0 var(--d), 0 2px 0 rgba(0, 0, 0, 0.25);
+  opacity: 0.92;
+}
+#hud.touch .hud-btn svg {
+  top: 38%;
+  width: 54%;
+  height: 54%;
+}
+#hud.touch .hud-btn.opts {
+  grid-column: auto;
+  margin-left: 0;
+}
+#hud.touch .hud-btn .key {
+  display: none;
+}
+#hud.touch .hud-btn .lbl {
+  bottom: 7%;
+  font-size: 10px;
+  -webkit-text-stroke: 0;
+}
+#hud.touch .hud-btn .alert {
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  right: -5px;
+  top: -5px;
+  left: auto;
+}
+
+/* scoreboard: small on the right under the menu row; tap the title to fold it */
+#hud.touch .hud-board {
+  display: block;
+  top: calc(max(env(safe-area-inset-top, 0px), var(--right-safe)) + var(--tpad) + var(--mbtn) + 10px);
+  min-width: 0;
+  font-size: 10px;
+  pointer-events: none;
+}
+#hud.touch .hud-board.hidden {
+  display: none;
+}
+#hud.touch .hud-board .title {
+  position: relative;
+  font-size: 12px;
+  padding: 3px 10px;
+  pointer-events: auto;
+}
+/* a bigger tap area than the title strip */
+#hud.touch .hud-board .title::before {
+  content: '';
+  position: absolute;
+  inset: -10px 0;
+}
+#hud.touch .hud-board .title::after {
+  /* a small triangle: down = open, left = folded */
+  content: '';
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+  border: 5px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-bottom-width: 0;
+}
+#hud.touch .hud-board.folded {
+  padding-bottom: 0;
+}
+#hud.touch .hud-board.folded .row {
+  display: none;
+}
+#hud.touch .hud-board.folded .title::after {
+  border: 5px solid transparent;
+  border-right-color: rgba(255, 255, 255, 0.85);
+  border-left-width: 0;
+}
+
+/* chat feed: left-middle, above the movement pad */
+#hud.touch .hud-feed {
+  top: auto;
+  bottom: calc(var(--hud-ctl-b, 0px) + 35vmin + 22px + env(safe-area-inset-bottom, 0px));
+  width: min(40vw, 360px);
+  font-size: 11px;
+}
+
+/* hotbar + bars */
 #hud.touch .hud-bottom {
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(6px + env(safe-area-inset-bottom, 0px));
 }
 #hud.touch .hud-prompt {
   bottom: calc(var(--slot) * 2.6 + 30px);
-  font-size: 16px;
+  font-size: 15px;
 }
-/* touch: keep the hotbar between the joystick and the jump cluster */
-#hud.touch.compact .hud-bottom,
-#hud.touch.portrait .hud-bottom {
-  width: min(calc(var(--slot) * 9 + 6px), 52vw);
-  --slot: min(5.6vw, 44px);
+/* landscape: between the movement pad and the action buttons */
+#hud.touch:not(.portrait) .hud-bottom {
+  --slot: min(5.4vw, 44px, 11vh);
+  width: min(calc(var(--slot) * 9 + 6px), 50vw);
+}
+#hud.touch:not(.portrait) .hud-xp {
+  margin: 3px 0 5px;
+}
+
+/* portrait: the right-hand column under Boxity's top strip is [menu] [camera] [day] [respawn];
+   the menu squares only show (as a row to the left of [menu]) while it is open */
+.hud-more {
+  display: none;
+}
+#hud.touch.portrait .hud-more {
+  display: block;
+  position: absolute;
+  right: calc(var(--tpad) + env(safe-area-inset-right, 0px));
+  top: calc(max(env(safe-area-inset-top, 0px), var(--right-safe)) + var(--tpad));
+  width: var(--tb);
+  height: var(--tb);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+}
+#hud.touch.portrait .hud-more svg {
+  top: 50%;
+  width: 56%;
+  height: 56%;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
+}
+#hud.touch.portrait.menu-open .hud-more {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: #fff;
+}
+#hud.touch.portrait .hud-menu {
+  display: none;
+  left: auto;
+  right: calc(var(--tpad) + var(--tb) + var(--tgap) + 4px + env(safe-area-inset-right, 0px));
+  top: calc(max(env(safe-area-inset-top, 0px), var(--right-safe)) + var(--tpad) - 1px);
+}
+#hud.touch.portrait.menu-open .hud-menu {
+  display: grid;
+}
+#hud.touch.portrait .hud-board {
+  top: calc(max(env(safe-area-inset-top, 0px), var(--right-safe)) + var(--tpad) + 4 * var(--tb) + 3 * var(--tgap) + 10px);
 }
 #hud.touch.portrait .hud-bottom {
-  width: 96vw;
-  --slot: min(10.4vw, 46px);
-  bottom: calc(30vw + 120px);
+  --slot: min(10.4vw, 48px);
+  width: min(96vw, calc(var(--slot) * 9 + 6px));
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+}
+#hud.touch.portrait .hud-xp {
+  margin: 3px 0 5px;
+}
+#hud.touch.portrait .hud-feed {
+  bottom: auto;
+  top: calc(var(--top-safe) + env(safe-area-inset-top, 0px) + 6px);
+  width: min(64vw, 300px);
+}
+#hud.touch.portrait .hud-prompt {
+  bottom: calc(var(--hud-ctl-b, 0px) + 48vmin + 16px);
+}
+#hud.touch.portrait .hud-itemname {
+  font-size: 13px;
 }
 /* short screens (landscape phones): denser menu cards */
 @media (max-height: 520px) {

@@ -180,9 +180,14 @@ export class Particles {
       i++
     }
     this.geo.setDrawRange(0, this.n)
-    this.geo.attributes.position.needsUpdate = true
-    this.geo.attributes.size.needsUpdate = true
-    this.geo.attributes.tint.needsUpdate = true
+    // upload only the live particles (an attribute with no update range re-uploads the whole pool)
+    if (this.n === 0) return
+    const a = this.geo.attributes
+    for (const attr of [a.position, a.size, a.tint]) {
+      attr.clearUpdateRanges()
+      attr.addUpdateRange(0, this.n * attr.itemSize)
+      attr.needsUpdate = true
+    }
   }
 }
 

@@ -109,6 +109,21 @@ function fillNoise(ctx, w, h, colors, rand) {
 
 // --- Crates (chests) -----------------------------------------------------------------------
 // kind 'normal': oak chest, iron latch. kind 'ranked': obsidian chest, glowing violet seam + gem.
+// A box with one material on its four sides and another on top + bottom, drawn in 2 calls
+// instead of BoxGeometry's 6 face groups (same triangles, same materials: identical pixels).
+function sideTopBox(w, h, d, side, top) {
+  const geo = new BoxGeometry(w, h, d)
+  const src = geo.index.array // faces in order +x, -x, +y, -y, +z, -z; 6 indices each
+  const order = [0, 1, 4, 5, 2, 3]
+  const idx = []
+  for (const f of order) for (let i = 0; i < 6; i++) idx.push(src[f * 6 + i])
+  geo.setIndex(idx)
+  geo.clearGroups()
+  geo.addGroup(0, 24, 0)
+  geo.addGroup(24, 12, 1)
+  return new Mesh(geo, [side, top])
+}
+
 export function buildChest(kind = 'normal') {
   const rand = mulberry32(kind === 'normal' ? 5 : 9)
   const ranked = kind === 'ranked'
@@ -150,7 +165,7 @@ export function buildChest(kind = 'normal') {
   // base: 14 x 10 x 14 px
   const baseSide = mat(face(14, 10, { bottomDark: true }))
   const baseTop = mat(face(14, 14))
-  const base = new Mesh(new BoxGeometry(14 * PX, 10 * PX, 14 * PX), [baseSide, baseSide, baseTop, baseTop, baseSide, baseSide])
+  const base = sideTopBox(14 * PX, 10 * PX, 14 * PX, baseSide, baseTop)
   base.position.y = 5 * PX
   base.castShadow = base.receiveShadow = true
   root.add(base)
@@ -160,7 +175,7 @@ export function buildChest(kind = 'normal') {
   lidPivot.position.set(0, 10 * PX, -7 * PX)
   const lidSide = mat(face(14, 5, { topTrim: false }))
   const lidTop = mat(face(14, 14))
-  const lid = new Mesh(new BoxGeometry(14 * PX, 5 * PX, 14 * PX), [lidSide, lidSide, lidTop, lidTop, lidSide, lidSide])
+  const lid = sideTopBox(14 * PX, 5 * PX, 14 * PX, lidSide, lidTop)
   lid.position.set(0, 2.5 * PX, 7 * PX)
   lid.castShadow = lid.receiveShadow = true
   lidPivot.add(lid)
@@ -196,6 +211,7 @@ export function buildChest(kind = 'normal') {
 
   return {
     root,
+    base,
     lidPivot,
     band,
     latch,

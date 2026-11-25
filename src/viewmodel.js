@@ -112,7 +112,10 @@ export function createViewmodel(camera) {
       const halfW = Math.tan((camera.fov * Math.PI) / 360) * -ITEM_POS[2] * camera.aspect
       const P = bow ? BOW_POS : ITEM_POS
       const Rt = bow ? BOW_ROT : ITEM_ROT
-      item.position.set(Math.min(P[0], halfW * 0.62), P[1], P[2])
+      // tall portrait screens: a smaller held item, tucked into the corner, so it blocks less
+      const k = camera.aspect < 0.75 ? Math.max(0.62, camera.aspect / 0.75) : 1
+      item.scale.setScalar(k)
+      item.position.set(Math.min(P[0], halfW * 0.62), P[1] - (1 - k) * 0.2, P[2])
       item.rotation.set(Rt[0], Rt[1], Rt[2] + (bow ? draw * 0.12 : 0))
       arm.position.set(...ARM_POS)
       arm.rotation.set(0.25, -0.35, 0)

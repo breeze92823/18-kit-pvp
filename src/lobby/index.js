@@ -1,7 +1,8 @@
 // The lobby: voxel island + props + NPCs + effects. createLobby(scene, lighting)
 // builds everything and returns the per-frame update, the interactables the
 // crosshair / E key can use, crate animations and footstep surface lookups.
-import { Color, Group, PointLight, Sprite, SpriteMaterial, CanvasTexture, SRGBColorSpace } from 'three'
+import { Color, Group, Mesh, PointLight, Sprite, SpriteMaterial, CanvasTexture, SRGBColorSpace } from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { COARSE_POINTER, CRATES, LOBBY } from '../config.js'
 import { VoxelWorld, blockInfo } from '../voxel/voxels.js'
 import { tilePalette } from '../voxel/blocktex.js'
@@ -19,6 +20,7 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   const voxels = new VoxelWorld()
   const A = buildLobby(voxels)
   const mesh = voxels.buildMesh()
+  mesh.userData.staticShadow = true // never moves: its sun shadow is cached (shadowCache.js)
   // everything visible in the lobby hangs off one group, hidden while you are in the arena
   const root = new Group()
   root.name = 'lobby'
@@ -103,6 +105,7 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
     const a = A.crates[kind]
     const chest = buildChest(kind)
     chest.root.position.set(a.x, a.y, a.z)
+    chest.base.userData.staticShadow = true // the body never moves (the lid does): cached sun shadow
     props.add(chest.root)
     const color = kind === 'normal' ? '#ffcf3a' : '#e04bff'
     const beam = buildBeam(color)
@@ -120,24 +123,46 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
     const c = buildChest('normal')
     c.root.position.set(A.stallChest.x, A.stallChest.y, A.stallChest.z)
     c.root.rotation.y = A.stallChest.facing
+    c.root.userData.staticShadow = true // display only, never opens: cached sun shadow
     props.add(c.root)
   }
 
   // --- Lanterns (the first few get real lights at night) ---
+  // They never move, so all of them are baked into 4 meshes (iron that casts, chains that
+  // don't, plain bulbs, and the night-lit bulbs whose glow lighting.js drives) instead of
+  // ~40 separate draws. Every lantern builds identical materials, so one of each is kept.
   let lit = 0
+  const buckets = {} // key -> { mat, castShadow, geos: [] }
   for (const l of A.lanterns) {
     const lan = buildLantern({ hang: !!l.hang })
     lan.position.set(l.x, l.y - (l.hang ? 0.62 : 0), l.z)
-    props.add(lan)
-    if (lighting && l.post && lit < 2) {
-      lighting.addLamp(l.x, l.y - 0.2, l.z, lan.userData.bulb)
+    lan.updateMatrixWorld(true)
+    const isLit = !!(lighting && l.post && lit < 2)
+    for (const m of lan.children) {
+      const key = m.material === lan.userData.bulb ? (isLit ? 'bulbLit' : 'bulb') : m.castShadow ? 'iron' : 'chain'
+      const b = (buckets[key] ??= { mat: m.material, castShadow: m.castShadow, geos: [] })
+      b.geos.push(m.geometry.clone().applyMatrix4(m.matrixWorld))
+    }
+    if (isLit) {
+      lighting.addLamp(l.x, l.y - 0.2, l.z, buckets.bulbLit.mat)
       lit++
     }
+  }
+  for (const b of Object.values(buckets)) {
+    const geo = mergeGeometries(b.geos)
+    geo.clearGroups()
+    b.geos.forEach((g) => g.dispose())
+    const mesh = new Mesh(geo, b.mat)
+    mesh.castShadow = b.castShadow
+    mesh.matrixAutoUpdate = false
+    mesh.userData.staticShadow = true // static: cached sun shadow (shadowCache.js)
+    props.add(mesh)
   }
 
   // --- Campfire ---
   const fire = buildCampfire()
   fire.root.position.set(A.campfire.x, 0, A.campfire.z)
+  fire.root.userData.staticShadow = true // only the logs cast, and they never move: cached sun shadow
   props.add(fire.root)
   solidBox(0.5, 0.2, 0.5, A.campfire.x, 0.2, A.campfire.z)
   const fireLight = new PointLight('#ff9a3a', 6, 11, 2)
