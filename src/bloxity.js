@@ -2,7 +2,8 @@
 // here may throw when the SDK is missing: a blocked sdk.bloxity.io leaves the
 // game fully playable on the default avatar and keyboard controls.
 // Docs: https://docs.bloxity.io/#html5
-import { GAME_SLUG, GAME_TITLE, SETTINGS, DEV_MODE, coerceSetting } from './config.js'
+import * as THREE from 'three'
+import { GAME_SLUG, GAME_TITLE, SETTINGS, DEV_MODE, coerceSetting, BOARDS, AD_SCREENS } from './config.js'
 
 export function sdk() {
   if (DEV_MODE) return null
@@ -24,6 +25,10 @@ const proportionListeners = new Set()
 const authListeners = new Set()
 const settingListeners = new Set()
 const respawnListeners = new Set()
+const emoteListeners = new Set()
+const chatListeners = new Set()
+const adBreakListeners = new Set()
+const badgeListeners = new Set()
 const unsubscribers = []
 
 function emit(listeners, ...args) {
@@ -178,10 +183,13 @@ export function init() {
     }
 
     unsubscribers.push(
-      SDK.player.onEvent((event) => {
+      SDK.player.onEvent((event, data) => {
         if (event === 'respawn_request') emit(respawnListeners)
+        // Boxity draws the emote picker and only sends the catalogue id of the pick.
+        else if (event === 'play_emote' && typeof data === 'string') emit(emoteListeners, data)
       }),
     )
+    initPlatformFeatures(SDK)
 
     SDK.game.loadingStep('Building the island')
   } catch (err) {
@@ -227,6 +235,137 @@ export function teardown() {
     sdk()?.game.gameplayEnd()
   } catch {
     // Non-fatal.
+  }
+}
+
+// --- Platform features ----------------------------------------------------------------------
+// Each one is wired on its own so an older SDK build that lacks one never costs the others.
+function initPlatformFeatures(SDK) {
+  const step = (name, fn) => {
+    try {
+      fn()
+    } catch (err) {
+      console.warn(`[bloxity] ${name} unavailable`, err)
+    }
+  }
+  // Emotes: the button only appears over games that registered, so do it right after init().
+  step('emotes', () => SDK.game.registerFeature?.('emotes'))
+  // Leaderboards: declared in the browser too, which is what shows Boxity's trophy button.
+  step('leaderboard', () => SDK.leaderboard?.define?.(BOARDS))
+  // Ads: Boxity runs every ad; the game only pauses + mutes around a break and lists its screens.
+  step('ads', () => {
+    if (!SDK.ads) return
+    unsubscribers.push(SDK.ads.onBreakStart?.((info) => emit(adBreakListeners, true, info)))
+    unsubscribers.push(SDK.ads.onBreakEnd?.((info) => emit(adBreakListeners, false, info)))
+    SDK.ads.declareScreens?.(AD_SCREENS)
+  })
+  // Chat: Boxity draws the chat UI; the game draws each message over its sender's head.
+  step('chat', () => {
+    if (SDK.chat?.onMessage) unsubscribers.push(SDK.chat.onMessage((m) => emit(chatListeners, m)))
+  })
+  // Badges: the server awards them; Boxity draws the popup. The game may add its own effect.
+  step('badges', () => {
+    if (SDK.badges?.onEarned) unsubscribers.push(SDK.badges.onEarned((b) => emit(badgeListeners, b)))
+  })
+}
+
+// Cb(emoteId) when the player picks an emote in Boxity's picker.
+export function onEmote(fn) {
+  emoteListeners.add(fn)
+  return () => emoteListeners.delete(fn)
+}
+// Cb(message) for every chat message in the room ({ userId, username, text, isGif, at, isLocalPlayer }).
+export function onChat(fn) {
+  chatListeners.add(fn)
+  return () => chatListeners.delete(fn)
+}
+export function onBadgeEarned(fn) {
+  badgeListeners.add(fn)
+  return () => badgeListeners.delete(fn)
+}
+// Cb(on, info): an ad break starts (on = true) or ends. Pause the game and mute while it plays.
+export function onAdBreak(fn) {
+  adBreakListeners.add(fn)
+  return () => adBreakListeners.delete(fn)
+}
+
+// The API host Boxity told us (never guessed from the page).
+export function apiUrl() {
+  try {
+    return sdk()?.environment?.()?.apiUrl || 'https://api.bloxity.io'
+  } catch {
+    return 'https://api.bloxity.io'
+  }
+}
+
+// Text for a chat bubble (trimmed to two short lines, "sent a GIF" for a GIF), or '' when the
+// message should not get one.
+export function bubbleText(message) {
+  try {
+    const s = sdk()
+    return s?.chat?.bubbleText ? String(s.chat.bubbleText(message) ?? '') : ''
+  } catch {
+    return ''
+  }
+}
+// A camera-facing bubble above `target` that replaces its previous one and removes itself.
+export function attachBubble(target, text, options) {
+  try {
+    return sdk()?.chat?.attachBubble?.(THREE, target, text, options) ?? null
+  } catch {
+    return null
+  }
+}
+
+// --- Ads ------------------------------------------------------------------------------------
+export function adsAvailable() {
+  try {
+    return !!sdk()?.ads?.isAvailable?.()
+  } catch {
+    return false
+  }
+}
+// -> { status, rewardToken? }; status 'completed' = the player watched it (never rejects).
+export async function showRewardedAd(placement) {
+  try {
+    const r = await sdk()?.ads?.showRewarded?.(placement)
+    return r && typeof r === 'object' ? r : { status: 'disabled' }
+  } catch {
+    return { status: 'error' }
+  }
+}
+// Tells Boxity which of the game's screens is showing so it can put banners around it.
+export function adScreen(type, options) {
+  try {
+    sdk()?.ads?.screen?.(type, options)
+  } catch {
+    // Cosmetic.
+  }
+}
+export function hideAdScreen() {
+  try {
+    sdk()?.ads?.hideScreen?.()
+  } catch {
+    // Cosmetic.
+  }
+}
+
+// --- Death screen ---------------------------------------------------------------------------
+// Boxity shows ads and a countdown (>= 4 s) while the player is dead; the game keeps its own
+// Respawn button, which only works once respawn() answers true. Outside Boxity the countdown is 0.
+const OFFLINE_DEATH = { onCountdown: (cb) => (cb(0), () => {}), respawn: () => true, isReady: () => true }
+export function showDeathScreen() {
+  try {
+    return sdk()?.deathScreen?.show?.() ?? OFFLINE_DEATH
+  } catch {
+    return OFFLINE_DEATH
+  }
+}
+export function hideDeathScreen() {
+  try {
+    sdk()?.deathScreen?.hide?.()
+  } catch {
+    // Nothing to close.
   }
 }
 
@@ -289,6 +428,15 @@ export async function resolveServerEndpoint(userId) {
   const { endpoint, roomId, cold } = await sdk().net.resolveEndpoint(GAME_SLUG, userId ? { userId } : undefined)
   if (cold) console.info('[net] waking up a server...')
   return { endpoint, relayRoomId: roomId }
+}
+
+// The signed-in player's Bloxity token for the game server to verify (null = guest / no SDK).
+export function getToken() {
+  try {
+    return sdk()?.auth?.getToken?.() ?? null
+  } catch {
+    return null
+  }
 }
 
 // The ?roomId= the page was opened with: the game page's Open Rooms Join button (a bare Colyseus

@@ -12,6 +12,29 @@ import { BLOOM } from './config.js'
 // so materials opt in by going HDR (emissive or a colour scaled above 1).
 // OutputPass then applies the renderer's tone mapping + sRGB. Off on the
 // lighter graphics presets: there the plain renderer.render path is used.
+// One NaN or Inf pixel in the HDR target (a half-float overflow on a glossy
+// highlight, a degenerate normal) gets smeared by the bloom's blur chain into
+// a big black rectangle, worse at each smaller mip. Bloom only reads the scene
+// through its high-pass filter, so we clean the colour there: NaN/Inf -> 0 and
+// anything brighter than BLOOM_MAX is capped (real glows stay well below it).
+// The scene image itself is untouched; at worst one stray pixel remains.
+const BLOOM_MAX = '64.0'
+const TEXEL_FETCH = 'vec4 texel = texture2D( tDiffuse, vUv );'
+function sanitizeBloomInput(pass) {
+  const mat = pass.materialHighPassFilter
+  if (!mat?.fragmentShader.includes(TEXEL_FETCH)) {
+    console.warn('postfx: UnrealBloomPass high-pass shader changed; bloom NaN guard not applied')
+    return
+  }
+  mat.fragmentShader = mat.fragmentShader.replace(
+    TEXEL_FETCH,
+    `${TEXEL_FETCH}
+			if ( any( isnan( texel ) ) || any( isinf( texel ) ) ) texel = vec4( 0.0 );
+			texel = clamp( texel, 0.0, ${BLOOM_MAX} );`,
+  )
+  mat.needsUpdate = true
+}
+
 export function createPostFx(renderer, scene, camera) {
   let composer = null
   let bloom = null
@@ -25,6 +48,7 @@ export function createPostFx(renderer, scene, camera) {
     composer = new EffectComposer(renderer, target)
     composer.addPass(new RenderPass(scene, camera))
     bloom = new UnrealBloomPass(new Vector2(size.x, size.y), BLOOM.strength, BLOOM.radius, BLOOM.threshold)
+    sanitizeBloomInput(bloom)
     composer.addPass(bloom)
     composer.addPass(new OutputPass())
     composer.setPixelRatio(renderer.getPixelRatio())

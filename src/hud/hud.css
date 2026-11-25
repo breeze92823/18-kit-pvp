@@ -504,11 +504,139 @@
   max-width: 34em;
 }
 
-/* --- panels (menus) --------------------------------------------------------------- */
+.hud-fade.death {
+  background: radial-gradient(ellipse at center, rgba(120, 10, 10, 0.92), rgba(30, 0, 0, 0.97));
+}
+/* The game's own Respawn button on the death screen: centred (Boxity's banners use the edges). */
+.hud-fade .respawn {
+  margin-top: calc(18 * var(--u));
+  min-width: max(44px, calc(260 * var(--u)));
+  min-height: 44px;
+  padding: calc(12 * var(--u)) calc(34 * var(--u));
+  font: inherit;
+  font-size: calc(40 * var(--u));
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(#5fe05a, #2fa83a);
+  border: calc(4 * var(--u)) solid #14561c;
+  border-radius: calc(14 * var(--u));
+  box-shadow: 0 calc(6 * var(--u)) 0 #14561c;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.hud-fade .respawn[hidden] {
+  display: none;
+}
+.hud-fade .respawn:disabled {
+  background: linear-gradient(#8a8f98, #5d626b);
+  border-color: #33363c;
+  box-shadow: 0 calc(6 * var(--u)) 0 #33363c;
+  cursor: default;
+}
+.hud-fade .respawn:not(:disabled):active {
+  transform: translateY(calc(4 * var(--u)));
+  box-shadow: 0 calc(2 * var(--u)) 0 #14561c;
+}
+
+/* --- arena: hurt flash, burning, biome banner, hearts --------------------------------- */
+.hud-hurt,
+.hud-burn {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.hud-hurt {
+  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 45%, rgba(220, 0, 0, 0.55) 100%);
+}
+.hud-hurt.on {
+  animation: hud-hurt 0.5s ease-out;
+}
+@keyframes hud-hurt {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.hud-burn {
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 120, 0, 0) 40%, rgba(255, 90, 0, 0.32) 80%, rgba(255, 60, 0, 0.55) 100%);
+  transition: opacity 0.4s;
+}
+.hud-burn.on {
+  opacity: 1;
+  animation: hud-burn 0.18s infinite alternate;
+}
+@keyframes hud-burn {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.35);
+  }
+}
+.hud-biome {
+  position: absolute;
+  left: 50%;
+  top: max(calc(var(--top-safe, 0px) + 6vh), 18vh);
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+}
+.hud-biome .name {
+  font-size: clamp(26px, calc(76 * var(--u)), 76px);
+  font-weight: 700;
+  color: var(--c, #fff);
+  letter-spacing: 0.02em;
+}
+.hud-biome .sub {
+  font-size: clamp(14px, calc(28 * var(--u)), 28px);
+  font-weight: 600;
+  opacity: 0.9;
+}
+.hud-biome.show {
+  animation: hud-biome 2.6s ease forwards;
+}
+@keyframes hud-biome {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.92);
+  }
+  12%,
+  75% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+.hud-hearts.shake {
+  animation: hud-shake 0.3s linear;
+}
+.hud-hearts.low i {
+  animation: hud-beat 0.5s ease infinite;
+}
+@keyframes hud-shake {
+  25% {
+    transform: translateX(calc(-3 * var(--u)));
+  }
+  75% {
+    transform: translateX(calc(3 * var(--u)));
+  }
+}
+
+/* --- panels (menus): the same look as the Kits screen (kits.css) -------------------
+   dark grey frame, a title bar in the menu's colour with a pixel-font title,
+   light grey body, bevelled grey cards/buttons and the screen-level Exit + X. */
 .hud-scrim {
   position: absolute;
   inset: 0;
-  background: rgba(5, 10, 25, 0.35);
+  background: rgba(10, 14, 22, 0.4);
   opacity: 0;
   transition: opacity 0.18s;
   pointer-events: none;
@@ -517,25 +645,35 @@
   opacity: 1;
   pointer-events: auto;
 }
+.hud-panel,
+.win-exit {
+  --k: clamp(0.55px, min(0.1vh, 0.052vw), 1.2px);
+}
+.kits-exit.win-exit {
+  display: none;
+}
+.kits-exit.win-exit.on {
+  display: flex;
+  animation: kits-in 0.18s ease-out;
+}
 .hud-panel {
-  --pc: #ff8fb0;
-  --pd: #d4587e;
+  --pc: #d98a8e;
+  --pd: #b86a6e;
   position: absolute;
   left: 50%;
   top: 52%;
-  width: min(92vw, calc(980 * var(--u) + 120px));
-  max-height: min(82dvh, 760px);
-  transform: translate(-50%, -50%) scale(0.85);
+  width: min(94vw, calc(980 * var(--u) + 120px));
+  max-height: min(80dvh, 760px);
+  transform: translate(-50%, -50%) scale(0.92);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.15s;
-  background: #fdfaf4;
-  border-radius: 22px;
-  border: 5px solid var(--pd);
-  box-shadow: 0 10px 0 var(--pd), 0 16px 40px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease-out, opacity 0.15s;
+  background: #c6c6c6;
+  border: max(3px, calc(5 * var(--k))) solid #4a4a4a;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  color: #3a3040;
+  color: #1a1a1a;
   overflow: hidden;
 }
 .hud-panel.on {
@@ -543,79 +681,75 @@
   opacity: 1;
   pointer-events: auto;
 }
-.hud-panel header {
+.hud-panel .win-title {
   background: var(--pc);
-  box-shadow: inset 0 -6px 0 var(--pd);
-  padding: 10px 64px 16px 22px;
+  border-color: color-mix(in srgb, var(--pc) 55%, #fff);
+  border-bottom-color: var(--pd);
+}
+.hud-panel .win-title .ic {
+  height: 80%;
+  aspect-ratio: 1;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  position: relative;
 }
-.hud-panel header h2 {
+.hud-panel .win-title .ic svg,
+.hud-panel .win-title .ic img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.hud-panel .win-title h2 {
   margin: 0;
-  font-size: clamp(22px, 3.4vmin, 36px);
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 3px 0 var(--pd);
+  color: color-mix(in srgb, var(--pc) 45%, #fff);
+  -webkit-text-stroke-color: color-mix(in srgb, var(--pd) 55%, #000);
 }
-.hud-panel header .gold {
+.hud-panel .win-title .gold {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 12px;
-  padding: 4px 12px;
-  color: #ffe04a;
+  background: rgba(30, 30, 30, 0.45);
+  border-radius: 8px;
+  padding: 3px 12px;
+  color: #ffd23a;
   font-weight: 700;
-  font-size: clamp(16px, 2.4vmin, 24px);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  font-size: clamp(15px, 2.2vmin, 22px);
 }
-.hud-panel header .gold img {
+.hud-panel .win-title .gold img {
   width: 1.1em;
   height: 1.1em;
   image-rendering: pixelated;
-}
-.hud-x {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-58%);
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  border: none;
-  background: #f05a5a;
-  box-shadow: inset 0 -5px 0 #b83030;
-  color: #fff;
-  font-size: 26px;
-  font-weight: 700;
-  font-family: var(--font);
-  cursor: pointer;
-}
-.hud-x:active {
-  transform: translateY(-50%);
-  box-shadow: inset 0 -2px 0 #b83030;
 }
 .hud-panel .body {
   padding: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: #f4f4f4 transparent;
+}
+.hud-panel .body::-webkit-scrollbar {
+  width: 6px;
+}
+.hud-panel .body::-webkit-scrollbar-thumb {
+  background: #f4f4f4;
+  border-radius: 3px;
 }
 .hud-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(170px, 40vw), 1fr));
-  gap: 12px;
+  gap: 16px;
 }
+/* cards = the Kits screen's grey rows, stacked */
 .hud-card {
   position: relative;
-  background: #fff;
-  border-radius: 16px;
-  border: 3px solid #e6dfd6;
-  box-shadow: 0 5px 0 #e6dfd6;
-  padding: 12px 10px 10px;
+  background: #d9d9d9;
+  border-radius: 12px;
+  border: 3px solid #3a3a3a;
+  box-shadow:
+    inset 0 0 0 3px #f0f0f0,
+    inset 0 -6px 0 #b4b4b4,
+    0 4px 0 #2e2e2e;
+  padding: 12px 10px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -623,22 +757,26 @@
   cursor: pointer;
   text-align: center;
   font-family: var(--font);
-  color: inherit;
+  color: #1e1e1e;
   min-height: 44px;
-  transition: transform 0.08s;
+  transition: transform 0.06s;
 }
 .hud-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--pc);
+  filter: brightness(1.05);
 }
 .hud-card:active {
   transform: translateY(3px);
-  box-shadow: 0 2px 0 #e6dfd6;
+  box-shadow:
+    inset 0 0 0 3px #f0f0f0,
+    inset 0 -6px 0 #b4b4b4,
+    0 1px 0 #2e2e2e;
 }
 .hud-card.sel {
-  border-color: #5ac83a;
-  box-shadow: 0 5px 0 #3e9a24;
-  background: #f2ffe8;
+  outline: 3px solid #ffe04a;
+  outline-offset: 2px;
+}
+.hud-card.sel .nm {
+  color: #24a024;
 }
 .hud-card img.icon {
   width: 64px;
@@ -648,28 +786,31 @@
 .hud-card .swatch {
   width: 64px;
   height: 64px;
-  border-radius: 14px;
+  border-radius: 8px;
+  border: 3px solid #3a3a3a;
   box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.2);
 }
 .hud-card .nm {
-  font-weight: 700;
-  font-size: 19px;
+  font-weight: 600;
+  font-size: 20px;
 }
 .hud-card .ds {
   font-size: 13px;
-  opacity: 0.75;
+  color: #3a3a3a;
   line-height: 1.2;
   min-height: 2.4em;
 }
+/* price / action pills = the Kits info box buttons */
 .hud-card .pill {
   margin-top: auto;
-  border-radius: 10px;
-  padding: 4px 12px;
-  font-weight: 700;
+  border-radius: 8px;
+  border: 2px solid #222;
+  padding: 3px 12px;
+  font-weight: 600;
   font-size: 16px;
-  background: #ffcf3a;
-  box-shadow: inset 0 -4px 0 #d49a10;
-  color: #5a3a00;
+  background: #6c6c6c;
+  box-shadow: inset 0 0 0 2px #8a8a8a;
+  color: #ffd23a;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -680,51 +821,63 @@
   image-rendering: pixelated;
 }
 .hud-card .pill.own {
-  background: #8fd4ff;
-  box-shadow: inset 0 -4px 0 #4a9ad0;
-  color: #0a3a5a;
+  background: #5cc83c;
+  box-shadow: inset 0 0 0 2px #9aeb7a;
+  color: #fff;
+  text-shadow: 0 1px 0 #2a7a1a;
 }
 .hud-card .pill.on {
-  background: #6ad04a;
-  box-shadow: inset 0 -4px 0 #3e9a24;
-  color: #fff;
+  background: #cfcfcf;
+  box-shadow: inset 0 0 0 2px #f2f2f2;
+  color: #111;
 }
 .hud-card .pill.no {
-  filter: grayscale(0.6);
-  opacity: 0.75;
+  color: #ff4a4a;
 }
 .hud-card .armor {
   font-size: 13px;
   font-weight: 600;
-  color: #6a6a7a;
+  color: #4a4a4a;
 }
 .hud-big-btn {
-  border: none;
-  border-radius: 14px;
-  padding: 12px 26px;
+  border: 3px solid #222;
+  border-radius: 10px;
+  padding: 8px 24px;
   min-height: 48px;
   font-family: var(--font);
-  font-size: clamp(18px, 2.6vmin, 24px);
-  font-weight: 700;
+  font-size: clamp(17px, 2.4vmin, 23px);
+  font-weight: 600;
   color: #fff;
-  background: #5ac83a;
-  box-shadow: inset 0 -6px 0 #3e9a24;
+  text-shadow: 0 2px 0 #2a7a1a;
+  background: #5cc83c;
+  box-shadow:
+    inset 0 0 0 2px #9aeb7a,
+    0 4px 0 #2a6a1a;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 .hud-big-btn:active {
-  box-shadow: inset 0 -2px 0 #3e9a24;
   transform: translateY(3px);
+  box-shadow:
+    inset 0 0 0 2px #9aeb7a,
+    0 1px 0 #2a6a1a;
 }
 .hud-big-btn.gray {
-  background: #a6a6b0;
-  box-shadow: inset 0 -6px 0 #7a7a84;
+  background: #cfcfcf;
+  color: #222;
+  text-shadow: none;
+  box-shadow:
+    inset 0 0 0 2px #f2f2f2,
+    0 4px 0 #4a4a4a;
 }
 .hud-big-btn.blue {
-  background: #3fa0ff;
-  box-shadow: inset 0 -6px 0 #2a70c0;
+  background: #3f8ae0;
+  text-shadow: 0 2px 0 #1a4a8a;
+  box-shadow:
+    inset 0 0 0 2px #8ac0ff,
+    0 4px 0 #1a4a8a;
 }
 .hud-big-btn img {
   width: 22px;
@@ -736,37 +889,47 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 6px;
-  border-bottom: 2px dashed #eee4d8;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: #d9d9d9;
+  border: 3px solid #3a3a3a;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 3px #f0f0f0;
   font-size: 18px;
   font-weight: 600;
   flex-wrap: wrap;
 }
 .hud-row input[type='range'] {
   width: min(260px, 50vw);
-  accent-color: #7a7a8a;
+  accent-color: #4a4a4a;
   height: 32px;
 }
 .hud-seg {
   display: inline-flex;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 3px solid #d6d0c8;
+  border: 3px solid #222;
 }
 .hud-seg button {
   border: none;
-  background: #fff;
+  background: #cfcfcf;
+  box-shadow: inset 0 0 0 2px #f2f2f2;
   font-family: var(--font);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 16px;
   padding: 8px 14px;
   min-height: 44px;
   cursor: pointer;
-  color: #5a5060;
+  color: #333;
+}
+.hud-seg button + button {
+  border-left: 3px solid #222;
 }
 .hud-seg button.on {
-  background: #7a7a8a;
+  background: #5cc83c;
+  box-shadow: inset 0 0 0 2px #9aeb7a;
   color: #fff;
+  text-shadow: 0 1px 0 #2a7a1a;
 }
 .hud-days {
   display: grid;
@@ -775,12 +938,15 @@
   margin-bottom: 16px;
 }
 .hud-day {
-  border-radius: 14px;
-  background: #fff;
-  border: 3px solid #e6dfd6;
+  border-radius: 10px;
+  background: #d9d9d9;
+  border: 3px solid #3a3a3a;
+  box-shadow:
+    inset 0 0 0 2px #f0f0f0,
+    0 3px 0 #2e2e2e;
   padding: 8px 4px;
   text-align: center;
-  font-weight: 700;
+  font-weight: 600;
   font-size: clamp(11px, 1.8vmin, 16px);
 }
 .hud-day img {
@@ -791,14 +957,18 @@
   margin: 4px auto;
 }
 .hud-day.done {
-  background: #e8f7df;
-  border-color: #6ad04a;
-  opacity: 0.75;
+  background: #a8d898;
+  box-shadow:
+    inset 0 0 0 2px #d0f0c0,
+    0 3px 0 #2e2e2e;
+  opacity: 0.8;
 }
 .hud-day.today {
-  border-color: #ffb31a;
-  background: #fff6d8;
-  box-shadow: 0 0 0 3px #ffe08a;
+  background: #ffe08a;
+  box-shadow:
+    inset 0 0 0 2px #fff4c8,
+    0 3px 0 #2e2e2e;
+  outline: 3px solid #ffb31a;
   animation: hud-bob 1.2s ease-in-out infinite;
 }
 .hud-center {
@@ -812,22 +982,26 @@
 .hud-center p {
   margin: 0;
   font-size: 17px;
-  opacity: 0.8;
+  color: #303030;
 }
 .hud-keys {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 6px 14px;
   font-size: 15px;
-  padding: 10px 6px;
+  padding: 12px 14px;
+  background: #b8b8b8;
+  border: 3px solid #3a3a3a;
+  border-radius: 12px;
 }
 .hud-keys kbd {
   font-family: var(--font);
-  font-weight: 700;
-  background: #eee;
-  border-radius: 8px;
-  padding: 1px 8px;
-  box-shadow: inset 0 -3px 0 #ccc;
+  font-weight: 600;
+  background: #e8e8e8;
+  border: 2px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 0 8px;
+  box-shadow: inset 0 -3px 0 #b4b4b4;
   justify-self: start;
 }
 .hud-crate-loot {
@@ -837,9 +1011,12 @@
   justify-content: center;
 }
 .hud-crate-loot div {
-  background: #fff;
-  border: 3px solid #e6dfd6;
-  border-radius: 14px;
+  background: #d9d9d9;
+  border: 3px solid #3a3a3a;
+  border-radius: 10px;
+  box-shadow:
+    inset 0 0 0 2px #f0f0f0,
+    0 3px 0 #2e2e2e;
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
@@ -947,8 +1124,8 @@
 }
 /* short screens (landscape phones): denser menu cards */
 @media (max-height: 520px) {
-  .hud-panel header {
-    padding: 6px 60px 10px 14px;
+  .hud-panel .win-title {
+    min-height: 30px;
   }
   .hud-panel .body {
     padding: 10px;

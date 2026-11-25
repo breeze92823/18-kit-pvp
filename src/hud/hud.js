@@ -5,11 +5,13 @@
 // It owns the menus' rules (buying with Gold, equipping, the daily streak)
 // through state.js; world effects go through the `ctx` callbacks.
 import './hud.css'
-import { CRATES, DAILY_REWARD, KITS, LOOKS, SHOP_ITEMS, xpForLevel } from '../config.js'
+import { CRATES, DAILY_REWARD, DUEL, KITS, LOOKS, SHOP_ITEMS, xpForLevel } from '../config.js'
 import { artCanvas, artURL } from '../lobby/pixelart.js'
 import { lootPreview } from '../crates.js'
 import { changed, claimDaily, dailyStatus, giveItem, onChange, spend, state } from '../state.js'
 import * as sfx from '../audio.js'
+import { createKitsScreen } from './kits.js'
+import { boardStatus } from './combatHud.js'
 
 const ICONS = {
   kits: '<svg viewBox="0 0 64 64"><path d="M14 10h10l8 6 8-6h10l8 12-8 6v26H14V28l-8-6z" fill="#7fd8f6" stroke="#2a7aa8" stroke-width="4" stroke-linejoin="round"/><path d="M24 22v26M40 22v26" stroke="#3f9ac8" stroke-width="3"/><path d="M18 14l6 2M46 14l-6 2" stroke="#d8f6ff" stroke-width="3" stroke-linecap="round"/></svg>',
@@ -56,6 +58,18 @@ function halfArmor() {
   ctx.drawImage(full, 0, 0, 10, 18, 0, 0, 10, 18)
   halfURL = c.toDataURL()
   return halfURL
+}
+// left half a full heart, right half empty (odd health)
+let halfHeartURL = null
+function halfHeart() {
+  if (halfHeartURL) return halfHeartURL
+  const c = document.createElement('canvas')
+  c.width = c.height = 18
+  const ctx = c.getContext('2d')
+  ctx.drawImage(artCanvas('heart_empty', 2), 0, 0)
+  ctx.drawImage(artCanvas('heart', 2), 0, 0, 9, 18, 0, 0, 9, 18)
+  halfHeartURL = c.toDataURL()
+  return halfHeartURL
 }
 const coinImg = () => `<img src="${artURL('coin', 4)}" alt="">`
 
@@ -107,7 +121,7 @@ export function createHud(ctx) {
       [`Killstreak: <span class="g">${state.killstreak}</span>`, 4],
       [`Playtime: <span class="y">${play}</span>`, 3],
       ['&nbsp;', 2],
-      [`<span class="y">Status: </span><span class="g">Not in combat</span>`, 1],
+      [`<span class="y">Status: </span><span class="bs ${boardStatus.cls}">${boardStatus.text}</span>`, 1],
     ]
     board.innerHTML = `<div class="title">Kit PvP</div>${rows.map(([h, n]) => `<div class="row"><span>${h}</span><span class="n">${n}</span></div>`).join('')}`
     board.classList.toggle('hidden', !state.settings.scoreboard)
@@ -132,7 +146,25 @@ export function createHud(ctx) {
 
   const icon = (name, n) => `<i style="background-image:url(${artURL(name, 2)})"></i>`.repeat(n)
   for (let i = 0; i < 10; i++) hearts.insertAdjacentHTML('beforeend', icon('heart', 1))
+  let shownHp = 20
+  function renderHearts(hp) {
+    const full = Math.floor(hp / 2)
+    const half = hp % 2 >= 1
+    let h = ''
+    for (let i = 0; i < 10; i++) h += i < full ? icon('heart', 1) : i === full && half ? `<i style="background-image:url(${halfHeart()})"></i>` : icon('heart_empty', 1)
+    hearts.innerHTML = h
+  }
   food.innerHTML = icon('food', 10)
+  let shownFood = 20
+  // hunger 0..20 (arena only; the lobby always shows it full)
+  function setFood(n) {
+    const v = Math.max(0, Math.min(20, Math.ceil(n)))
+    if (v === shownFood) return
+    shownFood = v
+    const full = Math.ceil(v / 2)
+    food.innerHTML = icon('food', full) + icon('food_empty', 10 - full)
+    food.classList.toggle('low', v <= 6)
+  }
   function renderBars() {
     const kit = KITS.find((k) => k.id === state.kit) ?? KITS[0]
     const full = Math.floor(kit.armor / 2)
@@ -149,13 +181,33 @@ export function createHud(ctx) {
     s.addEventListener('pointerdown', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      selectSlot(i)
+      // tapping the slot already in hand uses it (eat, drink, throw; hold = raise a shield)
+      if (i === state.selected) {
+        try {
+          s.setPointerCapture(e.pointerId)
+        } catch {
+          // ignore
+        }
+        ctx.onSlotUse?.(true)
+      } else selectSlot(i)
     })
+    const release = () => ctx.onSlotUse?.(false)
+    s.addEventListener('pointerup', release)
+    s.addEventListener('pointercancel', release)
     hot.appendChild(s)
     slots.push(s)
   }
   const itemIcon = (id) => (id === 'sword' ? 'sword' : SHOP_ITEMS.find((s) => s.id === id)?.icon ?? id)
-  const itemTitle = (id) => (id === 'sword' ? 'Iron Sword' : SHOP_ITEMS.find((s) => s.id === id)?.name ?? id)
+  // the kit weapon in slot 1 is named after the kit ("Frost Sword", "Ranger Bow")
+  const WEAPON_NAMES = { bow: 'Bow', axe: 'Axe', mace: 'Mace', trident: 'Trident', sword: 'Sword', wand: 'Knockback Stick', pickaxe: 'Pickaxe' }
+  const itemTitle = (id) => {
+    const shop = SHOP_ITEMS.find((s) => s.id === id)
+    if (shop) return shop.name
+    const base = Object.keys(WEAPON_NAMES).find((k) => id.startsWith(k))
+    if (!base) return id
+    const kit = KITS.find((k) => k.id === state.kit)
+    return kit && kit.id !== 'swordsman' ? `${kit.name} ${WEAPON_NAMES[base]}` : id === 'sword' ? 'Iron Sword' : WEAPON_NAMES[base]
+  }
   function renderHotbar() {
     state.hotbar.forEach((it, i) => {
       slots[i].innerHTML = it ? `<img src="${artURL(itemIcon(it.id), 4)}" alt=""><span class="cnt hud-outline">${it.count > 1 ? it.count : ''}</span>` : ''
@@ -227,12 +279,33 @@ export function createHud(ctx) {
     clearTimeout(rewardTimer)
     rewardTimer = setTimeout(() => rewardEl.classList.remove('show'), 2600)
   }
-  const fadeEl = el('div', 'hud-fade hud-outline', '<div class="big"></div><div class="small"></div>')
+  // red flash when hurt, an orange vignette while burning, the biome banner
+  const hurtEl = el('div', 'hud-hurt')
+  const burnEl = el('div', 'hud-burn')
+  const biomeEl = el('div', 'hud-biome hud-outline', '<div class="name"></div><div class="sub"></div>')
+  root.append(hurtEl, burnEl, biomeEl)
+  let biomeTimer = 0
+  const fadeEl = el('div', 'hud-fade hud-outline', '<div class="big"></div><div class="small"></div><button class="respawn" type="button" hidden></button>')
   root.appendChild(fadeEl)
-  function fade(on, big = '', small = '') {
+  const respawnBtn = fadeEl.querySelector('.respawn')
+  let respawnClick = null
+  respawnBtn.addEventListener('click', () => respawnClick?.())
+  respawnBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
+  function fade(on, big = '', small = '', kind = '') {
     fadeEl.querySelector('.big').textContent = big
     fadeEl.querySelector('.small').textContent = small
     fadeEl.classList.toggle('on', on)
+    fadeEl.classList.toggle('death', kind === 'death')
+    if (!on) setRespawn(null)
+  }
+  // The death screen's own Respawn button, in the centre (Boxity's ad banners sit on the edges):
+  // { label, enabled, onClick }, or null to hide it. It shows Boxity's countdown until it reaches 0.
+  function setRespawn(s) {
+    respawnBtn.hidden = !s
+    respawnClick = s?.onClick ?? null
+    if (!s) return
+    respawnBtn.textContent = s.label
+    respawnBtn.disabled = !s.enabled
   }
 
   // --- panels ---
@@ -243,16 +316,39 @@ export function createHud(ctx) {
     closePanel()
   })
   const panel = el('div', 'hud-panel')
-  panel.innerHTML = '<header><h2></h2><div class="gold"></div><button class="hud-x" type="button">✕</button></header><div class="body"></div>'
+  panel.innerHTML = '<header class="win-title"><span class="ic"></span><h2></h2><div class="gold"></div></header><div class="body"></div>'
   root.appendChild(panel)
   const pTitle = panel.querySelector('h2')
   const pGold = panel.querySelector('.gold')
   const pBody = panel.querySelector('.body')
-  panel.querySelector('.hud-x').addEventListener('click', () => closePanel())
+  const pIcon = panel.querySelector('.ic')
+  // the screen-level "Exit" + X, the same as on the Kits screen
+  const winExit = el('div', 'kits-exit win-exit', '<button class="kits-word" type="button">Exit</button><button class="kits-x" type="button" aria-label="Close"><span></span></button>')
+  root.appendChild(winExit)
+  for (const b of winExit.querySelectorAll('button')) {
+    b.addEventListener('click', () => closePanel())
+    b.addEventListener('pointerdown', (e) => e.stopPropagation())
+    b.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && sfx.uiHover())
+  }
+  const TITLE_ICON = { crate: 'chest', duels: 'sword' }
   panel.addEventListener('pointerdown', (e) => e.stopPropagation())
   panel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true })
   let open = null
   let openArg = null
+  // Kits has its own full-screen layout (kits.js); `open` is 'kits' while it shows.
+  const kits = createKitsScreen({
+    root,
+    icon: ICONS.kits,
+    toast,
+    onOpenChange(on) {
+      root.classList.toggle('kits-open', on)
+      if (!on && open === 'kits') {
+        open = null
+        openArg = null
+        sfx.uiClose()
+      }
+    },
+  })
 
   function togglePanel(name, arg) {
     if (open === name && openArg === arg) closePanel()
@@ -260,14 +356,32 @@ export function createHud(ctx) {
   }
   function openPanel(name, arg) {
     const first = !open
+    if (name === 'kits') {
+      panel.classList.remove('on')
+      scrim.classList.remove('on')
+      winExit.classList.remove('on')
+      open = name
+      openArg = arg
+      kits.open()
+      if (first) sfx.uiOpen()
+      else sfx.uiTab()
+      document.exitPointerLock?.()
+      return
+    }
+    if (open === 'kits') {
+      open = null
+      kits.close()
+    }
     open = name
     openArg = arg
     const [c, d] = PANEL_COLORS[name === 'crate' && arg === 'ranked' ? 'ranked' : name]
     panel.style.setProperty('--pc', c)
     panel.style.setProperty('--pd', d)
+    pIcon.innerHTML = ICONS[name] ?? `<img src="${artURL(TITLE_ICON[name] ?? 'star', 4)}" alt="">`
     renderPanel()
     panel.classList.add('on')
     scrim.classList.add('on')
+    winExit.classList.add('on')
     if (first) sfx.uiOpen()
     else sfx.uiTab()
     document.exitPointerLock?.()
@@ -278,10 +392,12 @@ export function createHud(ctx) {
   }
   function closePanel() {
     if (!open) return false
+    if (open === 'kits') return kits.close()
     open = null
     openArg = null
     panel.classList.remove('on')
     scrim.classList.remove('on')
+    winExit.classList.remove('on')
     sfx.uiClose()
     return true
   }
@@ -308,34 +424,6 @@ export function createHud(ctx) {
   }
 
   const PANELS = {
-    kits() {
-      pTitle.textContent = 'Kits'
-      const grid = el('div', 'hud-grid')
-      for (const k of KITS) {
-        const owned = state.kits.includes(k.id)
-        const sel = state.kit === k.id
-        const pill = sel ? '<span class="pill on">Selected</span>' : owned ? '<span class="pill own">Select</span>' : `<span class="pill ${state.gold < k.price ? 'no' : ''}">${coinImg()}${fmt(k.price)}</span>`
-        const card = button(`hud-card ${sel ? 'sel' : ''}`, `<img class="icon" src="${artURL(k.icon, 4)}" alt=""><div class="nm">${k.name}</div><div class="armor">Armor ${k.armor}/20</div><div class="ds">${k.desc}</div>${pill}`, () => {
-          if (owned) {
-            if (!sel) {
-              state.kit = k.id
-              changed()
-              sfx.equip()
-              toast(`${k.name} kit selected`, 'good')
-            }
-          } else if (spend(k.price)) {
-            state.kits.push(k.id)
-            state.kit = k.id
-            changed()
-            sfx.purchase()
-            toast(`Unlocked the ${k.name} kit!`, 'good')
-          } else notEnough(k.price)
-          renderPanel()
-        })
-        grid.appendChild(card)
-      }
-      pBody.appendChild(grid)
-    },
     shop() {
       pTitle.textContent = 'Shop'
       const grid = el('div', 'hud-grid')
@@ -355,6 +443,26 @@ export function createHud(ctx) {
         grid.appendChild(card)
       }
       pBody.appendChild(grid)
+      // Free Gold for a rewarded ad (only inside Boxity, where it can serve one). Gold only: nothing
+      // here is ever sold or granted in a premium currency.
+      const ads = ctx.ads
+      if (ads?.available()) {
+        const wait = Math.ceil(ads.cooldownLeft())
+        const c = el('div', 'hud-center')
+        c.appendChild(
+          button(`hud-big-btn ${wait > 0 || ads.busy() ? 'gray' : ''}`, wait > 0 ? `Watch another ad in ${wait}s` : `${coinImg()} Watch an ad: +${ads.gold} Gold`, async () => {
+            if (wait > 0 || ads.busy()) return sfx.deny()
+            const r = await ads.watch()
+            if (r.ok) {
+              sfx.reward()
+              showReward({ icon: 'coin', title: `+${r.gold} Gold`, color: '#ffd84a' }, 'Ad Reward')
+            } else if (r.message) toast(r.message, 'bad')
+            if (open === 'shop') renderPanel()
+          }),
+        )
+        c.appendChild(el('p', '', 'Watch a short ad for free Gold.'))
+        pBody.appendChild(c)
+      }
     },
     looks() {
       pTitle.textContent = 'Looks'
@@ -489,17 +597,45 @@ export function createHud(ctx) {
       }))
       pBody.appendChild(wrap)
     },
+    // Duels (duel/duels.js via ctx.duels()): queue casual / ranked, practice vs a bot, your
+    // rating and record, the top ranked players
     duels() {
       pTitle.textContent = 'Duels'
-      const wrap = el('div', 'hud-center')
-      wrap.appendChild(el('img', '', ''))
-      wrap.lastChild.src = artURL('sword', 8)
-      wrap.lastChild.style.cssText = 'width:96px;height:96px;image-rendering:pixelated'
-      wrap.appendChild(el('p', '', '1v1 duels with your selected kit. First to 3 rounds wins Gold and XP.'))
-      wrap.appendChild(button('hud-big-btn gray', 'Opens with the arena', () => {
-        sfx.deny()
-        toast('Duels open together with the arena — coming soon!', 'bad')
-      }))
+      const D = ctx.duels?.()
+      const wrap = el('div', 'hud-center hud-duels')
+      const kit = KITS.find((k) => k.id === state.kit)
+      wrap.appendChild(el('p', '', `1v1 with your selected kit (<b>${kit?.name ?? 'Swordsman'}</b>). First to ${DUEL.wins} rounds wins. Knock them off the platform!`))
+      if (!D) {
+        pBody.appendChild(wrap)
+        return
+      }
+      const S = D.state
+      const rec = state.duels ?? { won: 0, lost: 0 }
+      wrap.appendChild(el('div', 'hud-duel-stats', `<div><small>Rating</small><b>${D.rating()}</b></div><div><small>Ranked</small><b>${S.won}W - ${S.lost}L</b></div><div><small>All duels</small><b>${rec.won}W - ${rec.lost}L</b></div>`))
+      const R = DUEL.rewards
+      if (S.phase === 'queued') {
+        wrap.appendChild(el('p', 'hud-duel-wait', `Searching for an opponent (${S.mode === 'ranked' ? 'Ranked' : 'Casual'})…`))
+        wrap.appendChild(button('hud-big-btn gray', 'Cancel', () => D.cancel()))
+      } else if (S.phase === 'duel') {
+        wrap.appendChild(el('p', 'hud-duel-wait', `In a duel against ${S.opponent}. Press R to leave (counts as a loss).`))
+      } else {
+        const online = D.connected()
+        const row = el('div', 'hud-duel-modes')
+        row.appendChild(button(`hud-big-btn ${online ? '' : 'gray'}`, `Casual Duel<small>Win +${R.casual.win[0]} Gold +${R.casual.win[1]} XP</small>`, () => (online ? D.queue('casual') : (sfx.deny(), toast('Online duels need the game server', 'bad')))))
+        row.appendChild(button(`hud-big-btn blue ${online ? '' : 'gray'}`, `Ranked Duel<small>Win +${R.ranked.win[0]} Gold, rating</small>`, () => (online ? D.queue('ranked') : (sfx.deny(), toast('Online duels need the game server', 'bad')))))
+        row.appendChild(button('hud-big-btn gray', `Practice vs Bot<small>XP only</small>`, () => {
+          closePanel()
+          D.practice()
+        }))
+        wrap.appendChild(row)
+        if (!online) wrap.appendChild(el('p', '', 'Offline: only practice is available right now.'))
+      }
+      const top = ctx.boards?.()?.rating ?? []
+      if (top.length) {
+        const list = el('div', 'hud-duel-top', '<b>Top Ranked</b>')
+        top.slice(0, 5).forEach((r, i) => list.appendChild(el('div', '', `${i + 1}. ${String(r.name).replace(/[<>&]/g, '')} <span>${r.value}</span>`)))
+        wrap.appendChild(list)
+      }
       pBody.appendChild(wrap)
     },
   }
@@ -511,6 +647,7 @@ export function createHud(ctx) {
     renderHotbar()
     btns.reward.classList.toggle('alerting', dailyStatus().ready)
     btns.shop.classList.toggle('alerting', !state.seen.shop)
+    kits.refresh()
     if (open) {
       pGold.innerHTML = `${coinImg()}${fmt(state.gold)}`
     }
@@ -521,8 +658,13 @@ export function createHud(ctx) {
     const w = window.innerWidth
     const h = window.innerHeight
     let bottomOfTop = 0
-    for (const a of areas || []) if (a.left < w * 0.5) bottomOfTop = Math.max(bottomOfTop, a.top + a.height)
+    let bottomOfRight = 0 // reserved strips that reach the right edge (the toolbar on phones)
+    for (const a of areas || []) {
+      if (a.left < w * 0.5) bottomOfTop = Math.max(bottomOfTop, a.top + a.height)
+      if (a.left + a.width > w * 0.8) bottomOfRight = Math.max(bottomOfRight, a.top + a.height)
+    }
     root.style.setProperty('--top-safe', `${bottomOfTop}px`)
+    root.style.setProperty('--right-safe', `${bottomOfRight}px`)
     root.classList.toggle('portrait', h > w * 1.15)
     root.classList.toggle('compact', !(h > w * 1.15) && (h <= 520 || w < 760))
   }
@@ -555,9 +697,17 @@ export function createHud(ctx) {
     toast,
     showReward,
     fade,
+    setRespawn,
     openPanel,
     closePanel,
     isOpen: () => !!open,
+    // re-render a window if it is the one open (the Duels window follows the queue)
+    refresh(name) {
+      if (open === name) renderPanel()
+    },
+    // the Kits screen replaces the game render while it is open (main.js)
+    kitsOpen: () => kits.isOpen(),
+    renderKits: (renderer, dt) => kits.render(renderer, dt),
     setTouch(on) {
       root.classList.toggle('touch', on)
       promptText = null
@@ -565,6 +715,40 @@ export function createHud(ctx) {
     setCrosshair(on) {
       cross.style.display = on ? '' : 'none'
     },
+    // health in half hearts (0..20); a drop shakes the bar
+    setHealth(hp) {
+      const v = Math.max(0, Math.min(20, Math.ceil(hp)))
+      if (v === shownHp) return
+      const hit = v < shownHp
+      shownHp = v
+      renderHearts(v)
+      hearts.classList.toggle('low', v <= 6)
+      if (hit) {
+        hearts.classList.remove('shake')
+        void hearts.offsetWidth
+        hearts.classList.add('shake')
+      }
+    },
+    hurt() {
+      hurtEl.classList.remove('on')
+      void hurtEl.offsetWidth
+      hurtEl.classList.add('on')
+    },
+    setBurning(on) {
+      burnEl.classList.toggle('on', on)
+    },
+    // big biome title that fades in and out
+    biome(name, color, sub = '') {
+      biomeEl.style.setProperty('--c', color)
+      biomeEl.querySelector('.name').textContent = name
+      biomeEl.querySelector('.sub').textContent = sub
+      biomeEl.classList.remove('show')
+      void biomeEl.offsetWidth
+      biomeEl.classList.add('show')
+      clearTimeout(biomeTimer)
+      biomeTimer = setTimeout(() => biomeEl.classList.remove('show'), 2600)
+    },
+    setFood,
     heartBeat() {
       ;[...hearts.children].forEach((h, i) => {
         h.classList.remove('beat')

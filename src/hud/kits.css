@@ -1,0 +1,518 @@
+/* The full-screen Kits screen (kits.js). Sizes use --k (1k ~ 1px at 1920x1000),
+   bumped on small screens so every tap target stays >= 44px. */
+.kits-screen {
+  --k: clamp(0.5px, min(0.1vh, 0.052vw), 1.3px);
+  --frame: #4a4a4a;
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: auto;
+  touch-action: none;
+  color: #1a1a1a;
+  font-family: var(--font);
+}
+.kits-screen.on {
+  display: block;
+  animation: kits-in 0.18s ease-out;
+}
+@keyframes kits-in {
+  from {
+    opacity: 0;
+  }
+}
+/* while the Kits screen shows, the rest of the HUD and the touch controls step aside */
+#hud.kits-open > :not(.kits-screen):not(.hud-toasts) {
+  display: none !important;
+}
+#hud.kits-open .hud-toasts {
+  z-index: 3;
+}
+body.kits-open .touch-root {
+  display: none !important;
+}
+
+/* --- the list panel ------------------------------------------------------------- */
+.kits-panel {
+  position: absolute;
+  left: calc(16 * var(--k) + env(safe-area-inset-left, 0px));
+  top: max(calc(var(--top-safe) + 8px), calc(88 * var(--k)));
+  bottom: calc(18 * var(--k) + env(safe-area-inset-bottom, 0px));
+  width: calc(398 * var(--k));
+  display: flex;
+  flex-direction: column;
+  background: #c6c6c6;
+  border: calc(5 * var(--k)) solid var(--frame);
+  box-shadow: 0 calc(4 * var(--k)) calc(14 * var(--k)) rgba(0, 0, 0, 0.25);
+}
+.kits-title,
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--k));
+  height: calc(58 * var(--k));
+  min-height: 34px;
+  padding: 0 calc(10 * var(--k));
+  background: #d98a8e;
+  border: calc(3 * var(--k)) solid #e8acae;
+  border-bottom-color: #b86a6e;
+  flex: none;
+}
+.kits-title svg {
+  height: 78%;
+  width: auto;
+}
+.kits-title span,
+.win-title h2 {
+  font-family: 'Pixelify Sans', var(--font);
+  font-weight: 700;
+  font-size: max(24px, calc(46 * var(--k)));
+  line-height: 1;
+  color: #f0b4b6;
+  -webkit-text-stroke: max(1.5px, calc(3 * var(--k))) #7a3a3e;
+  paint-order: stroke fill;
+  letter-spacing: 0.02em;
+}
+.kits-sort {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(10 * var(--k));
+  padding: calc(6 * var(--k)) calc(8 * var(--k)) calc(6 * var(--k));
+  flex: none;
+}
+.kits-sort label {
+  font-size: max(13px, calc(26 * var(--k)));
+  font-weight: 500;
+  color: #111;
+}
+.kits-select {
+  position: relative;
+  display: flex;
+  height: max(28px, calc(32 * var(--k)));
+  border: max(1px, calc(2 * var(--k))) solid #333;
+  background: #fff;
+}
+.kits-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font);
+  font-size: max(12px, calc(18 * var(--k)));
+  color: #111;
+  padding: 0 calc(42 * var(--k)) 0 calc(8 * var(--k));
+  width: calc(128 * var(--k));
+  min-width: 96px;
+  height: 100%;
+  cursor: pointer;
+  outline: none;
+}
+.kits-select .arr {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  aspect-ratio: 1;
+  background: #d6d6d6;
+  border-left: max(1px, calc(2 * var(--k))) solid #333;
+  box-shadow: inset 2px 2px 0 #f4f4f4, inset -2px -2px 0 #8a8a8a;
+  pointer-events: none;
+}
+.kits-select .arr::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  border: max(5px, calc(8 * var(--k))) solid transparent;
+  border-top: max(6px, calc(10 * var(--k))) solid #333;
+  border-bottom: 0;
+}
+.kits-list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: calc(8 * var(--k)) calc(22 * var(--k)) calc(14 * var(--k));
+  display: flex;
+  flex-direction: column;
+  gap: calc(26 * var(--k));
+  scrollbar-width: thin;
+  scrollbar-color: #f4f4f4 transparent;
+}
+.kits-list::-webkit-scrollbar {
+  width: 6px;
+}
+.kits-list::-webkit-scrollbar-thumb {
+  background: #f4f4f4;
+  border-radius: 3px;
+}
+
+/* --- kit rows (also used for menu cards: .win-card) -------------------------------- */
+.kit-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(22 * var(--k));
+  width: 100%;
+  height: max(44px, calc(76 * var(--k)));
+  padding: 0 calc(20 * var(--k)) 0 calc(28 * var(--k));
+  border-radius: calc(14 * var(--k));
+  border: max(2px, calc(3 * var(--k))) solid #3a3a3a;
+  background: #d9d9d9;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(3 * var(--k))) #f0f0f0,
+    inset 0 calc(-6 * var(--k)) 0 #b4b4b4,
+    0 calc(4 * var(--k)) 0 #2e2e2e;
+  font-family: var(--font);
+  color: #1e1e1e;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.06s;
+}
+.kit-row.locked {
+  background: #6c6c6c;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(3 * var(--k))) #8a8a8a,
+    inset 0 calc(-6 * var(--k)) 0 #5a5a5a,
+    0 calc(4 * var(--k)) 0 #2e2e2e;
+}
+.kit-row:hover {
+  filter: brightness(1.06);
+}
+.kit-row:active {
+  transform: translateY(calc(3 * var(--k)));
+}
+.kit-row.viewing {
+  outline: max(2px, calc(4 * var(--k))) solid #ffe04a;
+  outline-offset: calc(2 * var(--k));
+}
+.kit-row .ic {
+  width: calc(56 * var(--k));
+  height: calc(56 * var(--k));
+  min-width: 30px;
+  min-height: 30px;
+  image-rendering: pixelated;
+  flex: none;
+}
+.kit-row .tx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kit-row .nm {
+  font-size: max(16px, calc(34 * var(--k)));
+  font-weight: 500;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kit-row.locked .nm {
+  font-size: max(15px, calc(30 * var(--k)));
+  color: #121212;
+}
+.kit-row.equipped .nm {
+  color: #24a024;
+}
+.kit-row .req {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--k));
+  margin-top: calc(4 * var(--k));
+  font-size: max(10px, calc(17 * var(--k)));
+  font-weight: 500;
+  line-height: 1;
+}
+.kit-row .req img {
+  width: max(11px, calc(20 * var(--k)));
+  height: max(11px, calc(20 * var(--k)));
+  image-rendering: pixelated;
+  margin-left: calc(6 * var(--k));
+}
+.kit-row .ok.lv {
+  color: #3cf03c;
+}
+.kit-row .ok.pr {
+  color: #ffd23a;
+}
+.kit-row .no {
+  color: #ff3a3a;
+}
+
+/* --- Exit + X (also used by the menu windows) --------------------------------------- */
+.kits-exit {
+  position: absolute;
+  top: max(calc(env(safe-area-inset-top, 0px) + 8px), calc(var(--right-safe, 0px) + 8px), calc(88 * var(--k)));
+  right: calc(16 * var(--k) + env(safe-area-inset-right, 0px));
+  display: flex;
+  align-items: center;
+  gap: calc(40 * var(--k));
+  pointer-events: auto;
+}
+.kits-word {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: max(28px, calc(70 * var(--k)));
+  line-height: 1;
+  color: #ff1414;
+  -webkit-text-stroke: max(1.5px, calc(3 * var(--k))) #6a0000;
+  paint-order: stroke fill;
+  text-shadow: 0 calc(3 * var(--k)) 0 #6a0000;
+}
+.kits-x {
+  position: relative;
+  width: max(44px, calc(84 * var(--k)));
+  height: max(44px, calc(84 * var(--k)));
+  border-radius: calc(6 * var(--k));
+  border: max(2px, calc(4 * var(--k))) solid #c03c44;
+  background: #e8888c;
+  box-shadow:
+    inset 0 0 0 max(2px, calc(4 * var(--k))) #f4b4b6,
+    0 calc(5 * var(--k)) 0 #8a3036;
+  cursor: pointer;
+  padding: 0;
+}
+.kits-x:active {
+  transform: translateY(calc(3 * var(--k)));
+  box-shadow:
+    inset 0 0 0 max(2px, calc(4 * var(--k))) #f4b4b6,
+    0 calc(2 * var(--k)) 0 #8a3036;
+}
+.kits-x span::before,
+.kits-x span::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: max(3px, calc(6 * var(--k)));
+  background: #fbd4d6;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--k))) #c03c44;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.kits-x span::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.kits-wallet {
+  position: absolute;
+  top: calc(max(calc(env(safe-area-inset-top, 0px) + 8px), calc(var(--right-safe, 0px) + 8px), calc(88 * var(--k))) + max(52px, calc(100 * var(--k))));
+  right: calc(16 * var(--k) + env(safe-area-inset-right, 0px));
+  display: flex;
+  gap: calc(10 * var(--k));
+  font-size: max(13px, calc(24 * var(--k)));
+  font-weight: 700;
+}
+.kits-wallet > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: calc(4 * var(--k)) calc(14 * var(--k));
+  border-radius: calc(10 * var(--k));
+  background: rgba(30, 30, 30, 0.55);
+  color: #fff;
+}
+.kits-wallet .lv {
+  color: #8aff6a;
+}
+.kits-wallet .g {
+  color: #ffd23a;
+}
+.kits-wallet img {
+  width: 1.1em;
+  height: 1.1em;
+  image-rendering: pixelated;
+}
+
+/* --- the info box ----------------------------------------------------------------- */
+.kits-info {
+  --iw: calc(596 * var(--k));
+  position: absolute;
+  bottom: calc(18 * var(--k) + env(safe-area-inset-bottom, 0px));
+  left: max(50%, calc(16 * var(--k) + 398 * var(--k) + 24 * var(--k) + var(--iw) / 2));
+  transform: translateX(-50%);
+  width: var(--iw);
+  min-height: calc(195 * var(--k));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(10 * var(--k)) calc(20 * var(--k)) calc(12 * var(--k));
+  background: #c4c4c4;
+  border: calc(5 * var(--k)) solid var(--frame);
+  box-shadow: inset 0 0 0 calc(4 * var(--k)) #e6e6e6;
+  text-align: center;
+}
+.kits-info h3 {
+  margin: 0;
+  font-size: max(17px, calc(34 * var(--k)));
+  font-weight: 700;
+  color: #141414;
+  text-shadow: 0 calc(2 * var(--k)) 0 #f4f4f4;
+}
+.kits-info p {
+  margin: calc(4 * var(--k)) 0 0;
+  font-size: max(11px, calc(20 * var(--k)));
+  font-weight: 500;
+  line-height: 1.2;
+  color: #303030;
+}
+.kits-info .meta {
+  display: flex;
+  gap: calc(22 * var(--k));
+  margin-top: calc(6 * var(--k));
+  font-size: max(10px, calc(17 * var(--k)));
+  font-weight: 600;
+  color: #4a4a4a;
+}
+.kits-info .meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.kits-info .meta img {
+  width: 1.3em;
+  height: 1.3em;
+  image-rendering: pixelated;
+}
+.kits-btn,
+.win-btn {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: calc(104 * var(--k));
+  min-height: max(36px, calc(44 * var(--k)));
+  padding: 0 calc(16 * var(--k));
+  border-radius: calc(10 * var(--k));
+  border: max(2px, calc(3 * var(--k))) solid #222;
+  background: #cfcfcf;
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #f2f2f2,
+    0 calc(4 * var(--k)) 0 #4a4a4a;
+  font-family: var(--font);
+  font-size: max(15px, calc(26 * var(--k)));
+  font-weight: 500;
+  color: #111;
+  cursor: pointer;
+}
+.kits-btn:active,
+.win-btn:active {
+  transform: translateY(calc(3 * var(--k)));
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #f2f2f2,
+    0 calc(1 * var(--k)) 0 #4a4a4a;
+}
+.kits-btn img,
+.win-btn img {
+  width: 1em;
+  height: 1em;
+  image-rendering: pixelated;
+}
+.kits-btn.go,
+.win-btn.go {
+  background: #5cc83c;
+  color: #fff;
+  text-shadow: 0 2px 0 #2a7a1a;
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #9aeb7a,
+    0 calc(4 * var(--k)) 0 #2a6a1a;
+}
+.kits-btn.buy,
+.win-btn.buy {
+  background: #ffd23a;
+  color: #4a3000;
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #fff09a,
+    0 calc(4 * var(--k)) 0 #a07a10;
+}
+.kits-btn.poor,
+.win-btn.poor {
+  background: #b8a070;
+  color: #7a1a1a;
+}
+.kits-btn.off,
+.win-btn.off {
+  background: #8a8a8a;
+  color: #2a2a2a;
+  cursor: default;
+}
+
+/* --- small screens ---------------------------------------------------------------- */
+/* short landscape phones: the chat sits top-left, so the list moves to the right
+   under the X, the info box goes bottom-left and the duel fills the rest */
+#hud.compact .kits-screen {
+  --k: 0.6px;
+}
+#hud.compact .kits-exit {
+  top: max(calc(env(safe-area-inset-top, 0px) + 6px), calc(var(--right-safe, 0px) + 6px));
+  right: calc(8px + env(safe-area-inset-right, 0px));
+}
+#hud.compact .kits-word {
+  display: none;
+}
+#hud.compact .kits-wallet {
+  top: calc(max(calc(env(safe-area-inset-top, 0px) + 6px), calc(var(--right-safe, 0px) + 6px)) + 10px);
+  right: calc(64px + env(safe-area-inset-right, 0px));
+}
+#hud.compact .kits-panel {
+  left: auto;
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  top: calc(max(calc(env(safe-area-inset-top, 0px) + 6px), calc(var(--right-safe, 0px) + 6px)) + 54px);
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: min(40vw, 270px);
+}
+#hud.compact .kits-list {
+  gap: 10px;
+  padding: 6px 12px 10px;
+}
+#hud.compact .kits-info {
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  transform: none;
+  width: min(calc(100vw - min(40vw, 270px) - 32px), 440px);
+  min-height: 0;
+  padding: 6px 12px 8px;
+}
+#hud.compact .kits-info .kits-btn {
+  margin-top: 6px;
+}
+#hud.compact .kits-info p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#hud.portrait .kits-screen {
+  --k: clamp(0.5px, 0.16vw, 1px);
+}
+#hud.portrait .kits-panel {
+  top: auto;
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: auto;
+  height: 50dvh;
+}
+#hud.portrait .kits-info {
+  left: 50%;
+  bottom: calc(50dvh + 18px + env(safe-area-inset-bottom, 0px));
+  width: min(94vw, 520px);
+  min-height: 0;
+  padding-bottom: 10px;
+}
+#hud.portrait .kits-info .kits-btn {
+  margin-top: 8px;
+}
+#hud.portrait .kits-exit {
+  top: max(calc(env(safe-area-inset-top, 0px) + 8px), calc(var(--right-safe, 0px) + 8px));
+  gap: 14px;
+}
+#hud.portrait .kits-wallet {
+  top: calc(max(calc(env(safe-area-inset-top, 0px) + 8px), calc(var(--right-safe, 0px) + 8px)) + 54px);
+}

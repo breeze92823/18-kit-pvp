@@ -4,7 +4,6 @@
 // and coloured labels over the crates.
 import { CanvasTexture, DoubleSide, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Sprite, SpriteMaterial, SRGBColorSpace } from 'three'
 import { fontReady } from '../propkit.js'
-import { mulberry32 } from '../textures.js'
 
 const FONT = (size, weight = 700) => `${weight} ${size}px Fredoka, "Arial Rounded MT Bold", sans-serif`
 
@@ -90,24 +89,8 @@ export function fakeName(rand) {
   return a + sep + b + num
 }
 
-function boardRows(kind, rand) {
-  const rows = []
-  let v = kind === 'kills' ? 16000 : kind === 'time' ? 345 * 60 : 64000
-  for (let i = 0; i < 10; i++) {
-    v = Math.floor(v * (0.78 + rand() * 0.2))
-    const lvl = 30 + Math.floor(rand() * 290)
-    rows.push({ name: fakeName(rand), lvl, elite: rand() < 0.45, v })
-  }
-  return rows.map((r, i) => {
-    let value
-    if (kind === 'kills') value = `${r.v.toLocaleString('en-US')} kills`
-    else if (kind === 'time') value = `${Math.floor(r.v / 60)}h ${r.v % 60}m`
-    else value = `${r.v.toLocaleString('en-US')} Gold`
-    return { ...r, rank: i + 1, value }
-  })
-}
 
-function leaderboardTexture(title, rows, valueColor) {
+function leaderboardTexture(title, rows, valueColor, sub = 'All Time') {
   const c = document.createElement('canvas')
   const ctx = c.getContext('2d')
   const tex = new CanvasTexture(c)
@@ -126,7 +109,8 @@ function leaderboardTexture(title, rows, valueColor) {
       drawSegments(ctx, segs, x, y, size)
     }
     center([[title, C]], 50, 64)
-    center([['All Time', '#e8eef6']], 116, 40)
+    center([[sub, '#e8eef6']], 116, 40)
+    if (!rows.length) center([['No players yet. Be the first!', '#d0d8e2']], 182, 40)
     rows.forEach((r, i) => {
       const segs = [
         [`${r.rank}. `, '#ffffff'],
@@ -142,25 +126,44 @@ function leaderboardTexture(title, rows, valueColor) {
   }
   draw()
   fontReady.then(draw)
+  tex.userData.setRows = (next, nextSub = sub) => {
+    rows = next
+    sub = nextSub
+    draw()
+  }
   return tex
 }
+// server rows { name, level, value } -> drawn rows
+const fmtValue = (stat, v) => (stat === 'kills' ? `${v.toLocaleString('en-US')} kills` : stat === 'playtime' ? `${Math.floor(v / 3600)}h ${Math.floor((v % 3600) / 60)}m` : `${v.toLocaleString('en-US')} Gold`)
+const toRows = (stat, list) => (list ?? []).slice(0, 10).map((r, i) => ({ rank: i + 1, lvl: r.level ?? 1, name: String(r.name ?? '?').slice(0, 20), elite: (r.level ?? 1) >= 50, value: fmtValue(stat, r.value ?? 0) }))
 
+// The three lobby boards. They start empty; setBoards({ kills, playtime, gold }) draws the real
+// ones (the game server's leaderboard, or just you when playing offline).
 export function buildLeaderboards(anchor) {
   const g = new Group()
-  const rand = mulberry32(4242)
   const boards = [
-    ['TOP KILLS', boardRows('kills', rand), '#3fd6ff', -4.6, 3.6],
-    ['TOP PLAYTIME', boardRows('time', rand), '#3fd6ff', 0, 4],
-    ['TOP GOLD', boardRows('gold', rand), '#ffd23a', 4.8, 4.6],
+    ['kills', 'TOP KILLS', '#3fd6ff', -4.6, 3.6],
+    ['playtime', 'TOP PLAYTIME', '#3fd6ff', 0, 4],
+    ['gold', 'TOP GOLD', '#ffd23a', 4.8, 4.6],
   ]
-  for (const [title, rows, color, dx, w] of boards) {
-    const mat = new MeshBasicMaterial({ map: leaderboardTexture(title, rows, color), transparent: true, depthWrite: false, toneMapped: false, side: DoubleSide })
+  const textures = {}
+  for (const [stat, title, color, dx, w] of boards) {
+    const tex = leaderboardTexture(title, [], color, 'Connecting…')
+    textures[stat] = tex
+    const mat = new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, side: DoubleSide })
     const plane = new Mesh(new PlaneGeometry(w, (w * 760) / 1024), mat)
     plane.position.set(dx, 0, 0)
     plane.renderOrder = 4
     g.add(plane)
   }
   g.position.set(anchor.x, anchor.y, anchor.z)
+  let shown = ''
+  g.userData.setBoards = (data, sub = 'All Time') => {
+    const key = JSON.stringify(data) + sub
+    if (key === shown) return
+    shown = key
+    for (const stat of Object.keys(textures)) textures[stat].userData.setRows(toRows(stat, data?.[stat]), sub)
+  }
   return g
 }
 

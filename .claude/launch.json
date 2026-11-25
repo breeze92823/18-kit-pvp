@@ -11,6 +11,15 @@
       "port": 5241
     },
     {
+      "name": "kitpvp-kits",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_DEV_MODE=true&& npx vite --port 5243 --strictPort --mode development"
+      ],
+      "port": 5243
+    },
+    {
       "name": "dev",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

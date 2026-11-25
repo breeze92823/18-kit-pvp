@@ -202,6 +202,12 @@ const ARMOR = {
   iron: { base: '#d4d4d4', light: '#f4f4f4', dark: '#9a9a9a', edge: '#6a6a6a', trim: '#bcbcbc' },
   dark: { base: '#3b3638', light: '#5a5457', dark: '#262224', edge: '#141213', trim: '#7a4fb0' },
   gold: { base: '#f0c832', light: '#fff09a', dark: '#c89614', edge: '#8a6408', trim: '#fff6c8' },
+  leather: { base: '#8a5a32', light: '#a8744a', dark: '#6a4224', edge: '#3a2412', trim: '#c89a6a' },
+  chain: { base: '#8e9298', light: '#c4c8cc', dark: '#5a5e64', edge: '#34363a', trim: '#2a2c30' },
+  diamond: { base: '#4ad8d0', light: '#a8fff6', dark: '#2a9a98', edge: '#14585a', trim: '#e0fffa' },
+  emerald: { base: '#3ac06a', light: '#8af0a8', dark: '#1e8a44', edge: '#0e4a22', trim: '#d0ffd8' },
+  ruby: { base: '#d8302a', light: '#ff8a7a', dark: '#9a1a14', edge: '#4a0806', trim: '#ffd0a0' },
+  frost: { base: '#d8f0ff', light: '#ffffff', dark: '#9cc4f6', edge: '#4a7ab0', trim: '#8ad8ff' },
 }
 const ARMOR_PARTS = {
   head: { uv: [0, 0], size: [8, 8, 8] },
@@ -257,7 +263,7 @@ function paintArmor(kind) {
 }
 const armorTexCache = {}
 const armorMat = (kind) => {
-  armorTexCache[kind] ||= new MeshStandardMaterial({ map: paintArmor(kind), alphaTest: 0.5, roughness: kind === 'dark' ? 0.45 : 0.32, metalness: 0.75 })
+  armorTexCache[kind] ||= new MeshStandardMaterial({ map: paintArmor(kind), alphaTest: 0.5, roughness: kind === 'leather' ? 0.85 : kind === 'dark' ? 0.45 : 0.32, metalness: kind === 'leather' ? 0.05 : kind === 'frost' ? 0.3 : 0.75 })
   return armorTexCache[kind]
 }
 

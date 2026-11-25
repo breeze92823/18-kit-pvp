@@ -466,7 +466,7 @@ P.netherrack_b = (ctx, rand) => {
   speckle(ctx, rand, '#8d3232', 6, 3)
   speckle(ctx, rand, '#3d0d0d', 8, 2)
 }
-P.nether_bricks = (ctx, rand) => bricks(ctx, rand, [['#2f161a', 5], ['#37191e', 4], ['#28121a', 3], ['#3f1e23', 1]], '#160a0d', '#46222a')
+P.nether_bricks = (ctx, rand) => bricks(ctx, rand, [['#4a1d22', 5], ['#55222a', 4], ['#3f181d', 3], ['#5f2a30', 1]], '#1f0b0e', '#6a3036')
 P.glowstone = (ctx, rand) => {
   noiseFill(ctx, rand, [['#c88a3a', 3], ['#a06a2c', 2], ['#7d4f22', 1]])
   for (let i = 0; i < 9; i++) {
@@ -633,8 +633,8 @@ P.oak_log_h = (ctx, rand) => {
 // frame tiles without seams. Repainted ~10x a second by animateBlocks().
 const TAU = Math.PI * 2
 const grain = new Float32Array(TILE * TILE).map((_, i) => (((i * 2654435761) >>> 0) % 1000) / 1000)
-const LAVA_RAMP = ['#8f2205', '#b8340a', '#d9480f', '#ef6410', '#ff8a1c', '#ffb23a', '#ffd960']
-const WATER_RAMP = ['#1d38b2', '#2442c4', '#2b4fd2', '#3459dc', '#4069e4', '#5a82ee', '#86a8f6']
+const LAVA_RAMP = ['#7a1a04', '#a82a06', '#cf3c0a', '#e8540c', '#f87414', '#ff9a24', '#ffc040']
+const WATER_RAMP = ['#162c96', '#1c36a8', '#2240b8', '#2a4cc6', '#3459d2', '#4a70de', '#7392ea']
 function liquidFrame(ctx, t, ramp, speed, flow) {
   for (let y = 0; y < TILE; y++)
     for (let x = 0; x < TILE; x++) {
@@ -662,10 +662,18 @@ export function animateBlocks(dt, t) {
   animAcc = 0
   for (const a of animated) {
     const tex = cache.get(a.name)
-    if (!tex) continue
-    liquidFrame(tex.image.getContext('2d'), t, a.ramp, a.speed, a.flow)
-    tex.needsUpdate = true
+    if (!tex && !repaintListeners.length) continue
+    const canvas = tex ? tex.image : (frames[a.name] ??= makeCtx().c)
+    liquidFrame(canvas.getContext('2d'), t, a.ramp, a.speed, a.flow)
+    if (tex) tex.needsUpdate = true
+    for (const fn of repaintListeners) fn(a.name, canvas)
   }
+}
+// The voxel worlds' texture arrays copy each new frame into their layer.
+const repaintListeners = []
+const frames = {} // canvases for animated blocks that have no blockTexture
+export function onBlockRepaint(fn) {
+  repaintListeners.push(fn)
 }
 
 // --- texture cache -------------------------------------------------------------------
