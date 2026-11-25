@@ -1,7 +1,10 @@
 // Every tunable constant lives here; the rest of src/ holds no theme values.
 
 // --- Identity -------------------------------------------------------------
-export const GAME_SLUG = 'kit-pvp' // slug registered on bloxity.io
+// The game's slug AND hosting id on bloxity.io (bloxity.io/g/18-kit-pvp, 18-kit-pvp.play.bloxity.io =
+// the repo's LEGION_GAME_ID). It was 'kit-pvp', which is ANOTHER game's id: the matchmaker, the room
+// directory, the boards and token checks all went to that game instead of this one.
+export const GAME_SLUG = '18-kit-pvp'
 export const GAME_TITLE = 'Kit PvP'
 
 // Forces the Bloxity SDK and avatar CDN to be treated as unavailable (see .env.example).
