@@ -17,7 +17,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three'
-import { FOG, LIGHT, TIME_OF_DAY } from './config.js'
+import { ARENA_SKY, FOG, LIGHT, TIME_OF_DAY } from './config.js'
 import { mulberry32 } from './textures.js'
 
 // All scene lighting, blended between two moods (TIME_OF_DAY.day / .night):
@@ -50,6 +50,7 @@ const skyFragment = /* glsl */ `
     float d = max(dot(normalize(vDir), sunDir), 0.0);
     col += sunColor * (pow(d, 900.0) * 6.0 + pow(d, 24.0) * 0.25); // disc + halo
     col = mix(col, bottom * 0.85, smoothstep(0.0, -0.25, h));      // darker below the horizon
+    col = mix(col, vec3(0.006, 0.008, 0.02), smoothstep(-0.15, -0.6, h)); // the void far below
     gl_FragColor = vec4(col, 1.0);
   }`
 
@@ -59,12 +60,12 @@ function sunDirection(elevationDeg, azimuthDeg, out) {
   return out.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize()
 }
 
-function makeStars(count = 1400) {
-  const rand = mulberry32(7)
+function makeStars(count = 1400, seed = 7, lower = false) {
+  const rand = mulberry32(seed)
   const pos = []
   for (let i = 0; i < count; i++) {
     const u = rand() * Math.PI * 2
-    const v = Math.acos(rand() * 0.95) // upper hemisphere only
+    const v = lower ? Math.PI - Math.acos(rand() * 0.98) : Math.acos(rand() * 0.95) // one hemisphere
     const r = SKY_RADIUS * 0.9
     pos.push(Math.sin(v) * Math.cos(u) * r, Math.cos(v) * r, Math.sin(v) * Math.sin(u) * r)
   }
@@ -99,7 +100,8 @@ export function createLighting(scene, renderer, preset) {
   sky.renderOrder = -2
   sky.frustumCulled = false
   const stars = makeStars()
-  scene.add(sky, stars)
+  const voidStars = makeStars(1100, 21, true) // below the horizon, only in the arena's void
+  scene.add(sky, stars, voidStars)
 
   scene.fog = new Fog(D.horizon, FOG.near, FOG.far)
 
@@ -142,12 +144,19 @@ export function createLighting(scene, renderer, preset) {
   // --- Day/night blend ---
   let night = 0 // 0 = day, 1 = night
   let target = 0
+  // The arena's void sky blended over whatever day/night shows (0 = lobby, 1 = arena).
+  const V = ARENA_SKY
+  let voidK = 0
+  let voidTarget = 0
+  let bakedVoid = 0
+  const c2 = new Color()
   const dir = new Vector3()
   const tmpA = new Vector3()
   const tmpB = new Vector3()
   const c = new Color()
   const lerp = (a, b, t) => a + (b - a) * t
-  const mix = (key, out) => out.set(D[key]).lerp(c.set(N[key]), night)
+  const mix = (key, out) => out.set(D[key]).lerp(c.set(N[key]), night).lerp(c2.set(V[key]), voidK)
+  const lerp3 = (key) => lerp(lerp(D[key], N[key], night), V[key], voidK)
 
   function apply() {
     const t = night
@@ -158,17 +167,22 @@ export function createLighting(scene, renderer, preset) {
     mix('sunColor', sun.color)
     mix('hemiSky', hemi.color)
     mix('hemiGround', hemi.groundColor)
-    sun.intensity = lerp(D.sunIntensity, N.sunIntensity, t)
-    hemi.intensity = lerp(D.hemiIntensity, N.hemiIntensity, t)
-    scene.environmentIntensity = lerp(D.envIntensity, N.envIntensity, t)
-    renderer.toneMappingExposure = lerp(D.exposure, N.exposure, t)
-    stars.material.opacity = lerp(D.stars, N.stars, t)
+    sun.intensity = lerp3('sunIntensity')
+    hemi.intensity = lerp3('hemiIntensity')
+    scene.environmentIntensity = lerp3('envIntensity')
+    renderer.toneMappingExposure = lerp3('exposure')
+    stars.material.opacity = lerp3('stars')
+    voidStars.material.opacity = voidK
+    voidStars.visible = voidK > 0.01
+    scene.fog.near = lerp(FOG.near, V.fogNear, voidK)
+    scene.fog.far = lerp(FOG.far, V.fogFar, voidK)
     // Sun and moon are different directions: slerp-ish via normalised lerp of the two.
     sunDirection(D.sunElevation, D.sunAzimuth, tmpA)
     sunDirection(N.sunElevation, N.sunAzimuth, tmpB)
     dir.lerpVectors(tmpA, tmpB, t).normalize()
+    if (voidK > 0) dir.lerp(sunDirection(V.sunElevation, V.sunAzimuth, tmpA), voidK).normalize()
     skyMaterial.uniforms.sunDir.value.copy(dir)
-    const lampLevel = lerp(D.lampIntensity, N.lampIntensity, t)
+    const lampLevel = lerp(D.lampIntensity, N.lampIntensity, t) * (1 - voidK)
     for (const lamp of lamps) {
       lamp.light.intensity = lampLevel
       lamp.bulb.emissiveIntensity = 1.1 + (lampLevel / N.lampIntensity) * 2.4
@@ -182,6 +196,17 @@ export function createLighting(scene, renderer, preset) {
     sun,
     addLamp,
     isNight: () => target === 1,
+    // Blend to the arena's starry void (on) or back to the lobby sky; instant while faded out.
+    setVoid(on, instant = false) {
+      voidTarget = on ? 1 : 0
+      if (instant && voidK !== voidTarget) {
+        voidK = voidTarget
+        apply()
+        bakeEnvironment(night)
+        bakedVoid = voidK
+      }
+    },
+    voidAmount: () => voidK,
     // A world's sky { day, night } (WORLDS): swapped at once, keeping day or night as it is.
     setMoods(sky) {
       if (sky.day === D && sky.night === N) return
@@ -203,14 +228,20 @@ export function createLighting(scene, renderer, preset) {
     },
     // Called every frame with the player's position so the sun's shadow box and the sky follow them.
     update(dt, focus) {
-      if (night !== target) {
+      if (night !== target || voidK !== voidTarget) {
         const stepAmount = dt / TIME_OF_DAY.transition
         night = target > night ? Math.min(target, night + stepAmount) : Math.max(target, night - stepAmount)
+        const vStep = dt / 1.4
+        voidK = voidTarget > voidK ? Math.min(voidTarget, voidK + vStep) : Math.max(voidTarget, voidK - vStep)
         apply()
-        if (Math.abs(night - bakedAt) > 0.08 || night === target) bakeEnvironment(night)
+        if (Math.abs(night - bakedAt) > 0.08 || Math.abs(voidK - bakedVoid) > 0.1 || (night === target && voidK === voidTarget)) {
+          bakeEnvironment(night)
+          bakedVoid = voidK
+        }
       }
-      sky.position.set(focus.x, 0, focus.z)
+      sky.position.set(focus.x, focus.y, focus.z)
       stars.position.copy(sky.position)
+      voidStars.position.copy(sky.position)
       sun.position.set(focus.x + dir.x * 90, focus.y + dir.y * 90, focus.z + dir.z * 90)
       sun.target.position.set(focus.x, focus.y, focus.z)
       sun.target.updateMatrixWorld()

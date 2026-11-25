@@ -117,15 +117,19 @@
   height: 44px;
 }
 
-/* Thumb arc in the bottom-right corner: jump biggest and closest to the thumb. */
+/* Thumb arc in the bottom-right corner: jump in the corner, attack beside it (both
+   big), sprint above attack and the camera button above jump. */
 .touch-cluster {
-  --jump: clamp(72px, 20vmin, 100px);
-  --side: clamp(52px, 14vmin, 70px);
+  --jump: clamp(70px, 19vmin, 96px);
+  --side: clamp(50px, 13vmin, 66px);
+  --gap: clamp(8px, 2vmin, 14px);
+  --lift: calc(var(--side) * 0.45);
   position: absolute;
   right: calc(var(--safe-r) + var(--pad));
   bottom: calc(var(--safe-b) + var(--pad));
-  width: calc(var(--jump) + var(--side) + 12px);
-  height: calc(var(--jump) + var(--side) + 12px);
+  width: calc(var(--jump) * 2 + var(--gap));
+  height: calc(var(--lift) + var(--jump) + var(--gap) + var(--side));
+  pointer-events: none;
 }
 .touch-cluster .touch-btn {
   position: absolute;
@@ -137,15 +141,73 @@
   height: var(--jump);
   font-size: clamp(14px, 3.8vmin, 18px);
 }
-.touch-btn.sprint {
+.touch-btn.attack {
+  right: calc(var(--jump) + var(--gap));
+  bottom: var(--lift);
+  width: var(--jump);
+  height: var(--jump);
+  background: rgba(150, 30, 30, 0.5);
+}
+.touch-btn.attack svg {
+  width: 50%;
+  height: 50%;
+  stroke-width: 2.4;
+}
+.touch-btn.attack.on {
+  background: rgba(230, 70, 50, 0.8);
+}
+/* kit ability: left of RUN (clear of the hotbar in landscape and the joystick in portrait) */
+.touch-btn.ability {
+  display: none;
+  right: calc(var(--jump) + var(--gap) + (var(--jump) - var(--side)) / 2 + var(--side) + var(--gap));
+  bottom: calc(var(--lift) + var(--jump) + var(--gap));
+  width: var(--side);
+  height: var(--side);
+  overflow: hidden;
+  background: rgba(30, 40, 70, 0.55);
+}
+.touch-btn.ability.shown {
+  display: flex;
+}
+.touch-btn.ability.ready {
+  border-color: #ffe04a;
+}
+.touch-btn.ability.active,
+.touch-btn.ability.on {
+  background: rgba(60, 140, 210, 0.7);
+}
+.touch-btn.ability img {
+  width: 58%;
+  height: 58%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.touch-btn.ability .cd {
+  position: absolute;
   left: 0;
-  bottom: calc((var(--jump) - var(--side)) / 2);
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.touch-btn.ability .cnt {
+  position: absolute;
+  right: 22%;
+  bottom: 14%;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.touch-btn.sprint {
+  right: calc(var(--jump) + var(--gap) + (var(--jump) - var(--side)) / 2);
+  bottom: calc(var(--lift) + var(--jump) + var(--gap));
   width: var(--side);
   height: var(--side);
 }
 .touch-btn.mode {
-  top: 0;
   right: calc((var(--jump) - var(--side)) / 2);
+  bottom: calc(var(--jump) + var(--gap));
   width: var(--side);
   height: var(--side);
 }

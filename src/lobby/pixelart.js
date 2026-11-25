@@ -307,6 +307,251 @@ export const ART = {
   },
 }
 
+// --- Kit icons (the Kits screen) ---------------------------------------------------------------
+Object.assign(ART, {
+  wand: {
+    pal: { o: '#1e0f2a', s: '#6a3fa0', S: '#9a6ad0', g: '#e0b0ff', w: '#ffffff' },
+    rows: [
+      '.............oo.',
+      '............owgo',
+      '...........ogggo',
+      '..........osggo.',
+      '.........osSoo..',
+      '........osSo....',
+      '.......osSo.....',
+      '......osSo......',
+      '.....osSo.......',
+      '....osSo........',
+      '...osSo.........',
+      '..osSo..........',
+      '.osSo...........',
+      'osSo............',
+      'oso.............',
+      '.o..............',
+    ],
+  },
+  tnt: {
+    pal: { o: '#3a0a0a', r: '#d8302a', R: '#a01a14', w: '#f2f2f2', k: '#1a1a1a' },
+    rows: [
+      '................',
+      '.oooooooooooooo.',
+      '.orRrRrRrRrRrRo.',
+      '.orRrRrRrRrRrRo.',
+      '.owwwwwwwwwwwwo.',
+      '.owkkkwkwkwkkko.',
+      '.owwkwwkkkwwkwo.',
+      '.owwkwwkkkwwkwo.',
+      '.owwkwwkwkwwkwo.',
+      '.owwkwwkwkwwkwo.',
+      '.owwwwwwwwwwwwo.',
+      '.orRrRrRrRrRrRo.',
+      '.orRrRrRrRrRrRo.',
+      '.orRrRrRrRrRrRo.',
+      '.oooooooooooooo.',
+      '................',
+    ],
+  },
+  feather: {
+    pal: { o: '#3a3a3a', w: '#ffffff', g: '#cfd6dc', s: '#8a6a4a' },
+    rows: [
+      '...........oooo.',
+      '.........oowwwgo',
+      '........owwwwgo.',
+      '.......owwwwgo..',
+      '......owwwwgo...',
+      '.....owwwwgo....',
+      '....owwwwgo.....',
+      '...owwwwgo......',
+      '...owwwgo.......',
+      '..owwwgo........',
+      '..owwgo.........',
+      '..owgo..........',
+      '.osoo...........',
+      '.so.............',
+      'os..............',
+      'o...............',
+    ],
+  },
+  spring: {
+    pal: { o: '#1a3a1a', g: '#5ad04a', G: '#2a8a2a', m: '#9a9aa0' },
+    rows: [
+      '................',
+      '...mmmmmmmmmm...',
+      '...oooooooooo...',
+      '....oggggggo....',
+      '...oGGGGGGGGo...',
+      '....oggggggo....',
+      '...oGGGGGGGGo...',
+      '....oggggggo....',
+      '...oGGGGGGGGo...',
+      '....oggggggo....',
+      '...oGGGGGGGGo...',
+      '....oggggggo....',
+      '...oooooooooo...',
+      '...mmmmmmmmmm...',
+      '................',
+      '................',
+    ],
+  },
+  hook: {
+    pal: { o: '#1e1e1e', m: '#b8b8c0', M: '#7a7a84' },
+    rows: [
+      '......oooo......',
+      '......omMo......',
+      '......oooo......',
+      '.......omo......',
+      '.......omo......',
+      '.......omo......',
+      '..oo...omo...oo.',
+      '.omo...omo..omo.',
+      '.omo...omo..omo.',
+      '.omMo..omo.oMmo.',
+      '..omMooomooMmo..',
+      '...ommMMMMmmo...',
+      '....oooooooo....',
+      '................',
+      '................',
+      '................',
+    ],
+  },
+  pickaxe: {
+    pal: { o: '#1e1e1e', i: '#7adce0', I: '#3aa0a8', h: '#6b4423', b: '#3f2612' },
+    rows: [
+      '...oooooooooo...',
+      '..oiiiiiiiiIIo..',
+      '.oiIIooooooIIIo.',
+      '.oIo..ohbo..oIo.',
+      '.oo...ohbo...oo.',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......ohbo......',
+      '......oooo......',
+      '................',
+    ],
+  },
+  trident: {
+    pal: { o: '#0a2a3a', c: '#3ad0d0', C: '#1a8a9a', w: '#c0fff8' },
+    rows: [
+      '..o....o....o...',
+      '.owo..owo..owo..',
+      '.oco..oco..oco..',
+      '.oco..oco..oco..',
+      '.occcccccccco...',
+      '.ooooocCcoooo...',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......oCo.......',
+      '......ooo.......',
+    ],
+  },
+  mace: {
+    pal: { o: '#1a1a1a', m: '#9a9aa8', M: '#5a5a68', s: '#e0e0e8', h: '#6b4423' },
+    rows: [
+      '.......o........',
+      '....o.oso.o.....',
+      '.....ommmo......',
+      '..oooMmmmMooo...',
+      '.osMmmmmmmMso...',
+      '..oooMmmmMooo...',
+      '.....oMMMo......',
+      '....o.oho.o.....',
+      '......oho.......',
+      '......oho.......',
+      '......oho.......',
+      '......oho.......',
+      '......oho.......',
+      '......oho.......',
+      '......oho.......',
+      '......ooo.......',
+    ],
+  },
+  clock: {
+    pal: { o: '#3a2a00', y: '#ffd23a', Y: '#c89a10', w: '#f8f4e0', k: '#222222' },
+    rows: [
+      '.....oooooo.....',
+      '...ooyyyyyyoo...',
+      '..oyywwwwwwyyo..',
+      '.oywwwwkwwwwwyo.',
+      'oywwwwwkwwwwwwyo',
+      'oywwwwwkwwwwwwyo',
+      'oywwwwwkwwwwwwyo',
+      'oyYwwwwkkkkwwwyo',
+      'oywwwwwwwwwwwwyo',
+      'oywwwwwwwwwwwwyo',
+      '.oywwwwwwwwwwyo.',
+      '.oyywwwwwwwwyyo.',
+      '..ooyyyyyyyyoo..',
+      '....oooooooo....',
+      '................',
+      '................',
+    ],
+  },
+  lock: {
+    pal: { o: '#2a2a2a', s: '#b8b8b8', S: '#e8e8e8', w: '#f4f4f4', g: '#c8c8c8', k: '#7a4ab0', K: '#3a2a50' },
+    rows: [
+      '.....oooooo.....',
+      '....osSSSSso....',
+      '...osooooooso...',
+      '...oso....oso...',
+      '...oso....oso...',
+      '..oooooooooooo..',
+      '..okkkkkkkkkko..',
+      '..owwwwwwwwwwo..',
+      '..owwwwKKwwwwo..',
+      '..owwwwKKwwwwo..',
+      '..owwwwKKwwwwo..',
+      '..owwwwkkwwwwo..',
+      '..oggggggggggo..',
+      '..oooooooooooo..',
+      '................',
+      '................',
+    ],
+  },
+})
+// Recoloured copies of a base piece.
+const variant = (name, base, pal) => (ART[name] = { rows: ART[base].rows, pal: { ...ART[base].pal, ...pal } })
+variant('wand_ice', 'wand', { o: '#0a2a4a', s: '#3a9ad0', S: '#8ad8ff', g: '#e8fbff' })
+variant('wand_nature', 'wand', { o: '#12300a', s: '#3a7a2a', S: '#6ac04a', g: '#c8ff8a' })
+variant('wand_dark', 'wand', { o: '#0a060c', s: '#2a2030', S: '#4a3a5a', g: '#ff3a5a', w: '#ffb0c0' })
+variant('wand_fire', 'wand', { o: '#3a1004', s: '#a03a10', S: '#e07a20', g: '#ffe04a' })
+variant('wand_gold', 'wand', { o: '#3a2a00', s: '#c89614', S: '#f0c832', g: '#fff6c8' })
+variant('sword_gold', 'sword', { w: '#fff6c8', g: '#f0c832', d: '#c89614' })
+variant('sword_dark', 'sword', { w: '#a89ac0', g: '#5a4a70', d: '#2a2030', h: '#7a1a2a', b: '#4a0a14' })
+variant('sword_red', 'sword', { w: '#ffc0b0', g: '#e0402a', d: '#8a1a10' })
+variant('sword_ice', 'sword', { w: '#e8fbff', g: '#8ad8ff', d: '#3a9ad0' })
+variant('sword_jade', 'sword', { w: '#c8ffd8', g: '#3ac06a', d: '#1a7a3a' })
+variant('axe_dark', 'axe', { w: '#8a8aa0', g: '#4a4a5a', d: '#2a2a34', h: '#2a1a10' })
+variant('axe_gold', 'axe', { w: '#fff6c8', g: '#f0c832', d: '#c89614' })
+variant('orb_ghost', 'orb', { d: '#7a8a9a', m: '#c8d8e8', l: '#eef6ff', w: '#ffffff', o: '#3a4a5a' })
+variant('orb_void', 'orb', { d: '#2a0a4a', m: '#5a2a9a', l: '#9a5ae0', w: '#e0c0ff', o: '#12041e' })
+variant('orb_fire', 'orb', { d: '#7a1a04', m: '#d84a1a', l: '#ffa03a', w: '#fff0a0', o: '#2a0800' })
+variant('bow_gold', 'bow', { w: '#c89614', l: '#f0c832' })
+variant('bow_dark', 'bow', { w: '#3a2a4a', l: '#6a4a8a', s: '#d0a0ff' })
+variant('shield_red', 'shield', { b: '#c82a2a' })
+variant('shield_gold', 'shield', { b: '#e0a010', i: '#fff0a0' })
+variant('potion_green', 'potion', { p: '#5ad04a', P: '#2a8a2a', h: '#d0ffc0' })
+variant('potion_purple', 'potion', { p: '#a05ae0', P: '#6a2aa0', h: '#ecd0ff' })
+variant('star_blue', 'star', { y: '#8ad8ff', Y: '#3a9ad0', w: '#ffffff', o: '#0a2a4a' })
+variant('heal_green', 'heal', { r: '#4ad04a', R: '#2a8a2a', o: '#0a3a0a' })
+variant('flame_blue', 'flame', { r: '#3a8aff', R: '#1a4ab0', y: '#aaf0ff', o: '#0a1a4a' })
+variant('mace_gold', 'mace', { m: '#f0c832', M: '#c89614', s: '#fff6c8' })
+variant('pickaxe_iron', 'pickaxe', { i: '#d8d8d8', I: '#8a8a8a' })
+variant('trident_gold', 'trident', { c: '#f0c832', C: '#c89614', w: '#fff6c8', o: '#3a2a00' })
+variant('steak_raw', 'steak', { m: '#d84a4a', M: '#a02a2a' })
+variant('chest_ender', 'chest', { w: '#2a3a3a', W: '#1a2a2a', d: '#0a1414', i: '#3ad0a0', I: '#1a8a6a' })
+
 // Canvas of an art piece (each pixel `scale` px).
 export function artCanvas(name, scale = 1) {
   const a = ART[name]

@@ -20,12 +20,16 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   const voxels = new VoxelWorld()
   const A = buildLobby(voxels)
   const mesh = voxels.buildMesh()
-  scene.add(mesh)
+  // everything visible in the lobby hangs off one group, hidden while you are in the arena
+  const root = new Group()
+  root.name = 'lobby'
+  scene.add(root)
+  root.add(mesh)
   const colliders = voxels.buildColliders()
-  if (import.meta.env.DEV) console.info(`[lobby] ${voxels.cells.size} blocks, ${mesh.geometry.groups.length} materials, ${colliders} colliders`)
+  if (import.meta.env.DEV) console.info(`[lobby] ${voxels.cells.size} blocks, ${mesh.children.length} chunks, ${colliders} colliders`)
 
   const props = new Group()
-  scene.add(props)
+  root.add(props)
   const interactables = []
 
   // --- particles ---
@@ -33,7 +37,7 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   const glows = new Particles(500, { texture: TEX.soft(), additive: true, hdr: 1.8 })
   const smoke = new Particles(160, { texture: TEX.soft(), additive: false })
   const chips = new Particles(500, { texture: TEX.square(), additive: false })
-  scene.add(sparkles.points, glows.points, smoke.points, chips.points)
+  root.add(sparkles.points, glows.points, smoke.points, chips.points)
 
   // --- NPCs ---
   const npcs = []
@@ -91,7 +95,8 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
     'shop',
     'Open the shop',
   )
-  let duelsCount = 74
+  let duelsCount = 0 // players in duels or queued (setDuelsCount, from the room roster)
+  let shownDuels = -1
 
   // --- Crates on their pedestals, with beams and labels ---
   const crates = {}
@@ -138,20 +143,21 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   solidBox(0.5, 0.2, 0.5, A.campfire.x, 0.2, A.campfire.z)
   const fireLight = new PointLight('#ff9a3a', 6, 11, 2)
   fireLight.position.set(A.campfire.x, 1.1, A.campfire.z)
-  props.add(fireLight)
+  scene.add(fireLight) // outside the group: hiding a light would recompile every shader
 
   // --- Holograms + leaderboards ---
   props.add(buildWelcome(A.welcome))
-  props.add(buildLeaderboards(A.leaderboard))
+  const boards = buildLeaderboards(A.leaderboard)
+  props.add(boards)
 
   // --- Sky dressing ---
   const clouds = buildClouds()
-  scene.add(clouds.root)
+  root.add(clouds.root)
   const rocks = buildFloatingRocks(A.floatingRocks)
-  scene.add(rocks.root)
+  root.add(rocks.root)
 
   // --- Bots ---
-  const bots = createBots(scene, voxels, A, LOBBY.bots, onEvent)
+  const bots = createBots(root, voxels, A, LOBBY.bots, onEvent)
 
   // --- Reward icon that floats out of an opened crate ---
   function rewardSprite(icon) {
@@ -184,12 +190,26 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   }
   const R = Math.random
 
+  let active = true
   return {
     world: voxels,
     anchors: A,
+    root,
+    isActive: () => active,
+    // shown + updated in the lobby; hidden and paused in the arena
+    setActive(on) {
+      active = on
+      root.visible = on
+      if (!on) fireLight.intensity = 0
+    },
     mesh,
     interactables,
     crates,
+    // the real leaderboards ({ kills, playtime, gold } rows) and the Duels NPC's "N playing"
+    setBoards: (data, sub) => boards.userData.setBoards(data, sub),
+    setDuelsCount(n) {
+      duelsCount = n
+    },
 
     // Block underfoot: { name, sound } for footsteps and landing chips.
     surfaceAt(x, y, z) {
@@ -247,8 +267,8 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
         }
         n.ch.animate(dt, 0, look)
       }
-      if (R() < dt * 0.1) {
-        duelsCount = Math.max(52, Math.min(96, duelsCount + (R() < 0.5 ? -1 : 1) * Math.ceil(R() * 3)))
+      if (duelsCount !== shownDuels) {
+        shownDuels = duelsCount
         duels.ch.tag?.userData.redraw([
           { text: `${duelsCount} playing`, size: 30, color: '#ffffff', weight: 600 },
           { text: 'Duels', size: 40, color: '#3fe0ff' },

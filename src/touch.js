@@ -6,11 +6,12 @@
 //   buttons     - jump, sprint (toggle), camera mode, plus day-night/respawn
 import './touch.css'
 import { COARSE_POINTER, TOUCH } from './config.js'
-import { inputState, requestLock, setTouchMove, setTouchSprint } from './input.js'
+import { inputState, requestLock, setTouchJumpHeld, setTouchMove, setTouchSprint } from './input.js'
 
 const ICONS = {
   day: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
   respawn: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></svg>',
+  sword: '<svg viewBox="0 0 24 24"><path d="M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5"/><path d="M7 14l3 3M5.5 15.5l3 3"/><path d="M8.5 15.5 4 20"/></svg>',
 }
 
 function el(tag, className, html = '') {
@@ -142,7 +143,44 @@ function installLook(zone) {
   zone.addEventListener('pointercancel', lift)
 }
 
-// actions: { mode, day, respawn } callbacks (the menu is Boxity's toolbar).
+// The attack button: press = swing (or start drawing the bow), release = shoot.
+// Dragging the finger while holding it also aims, so you can fight with one thumb.
+function attackButton(actions) {
+  const b = el('button', 'touch-btn attack', ICONS.sword)
+  b.type = 'button'
+  let id = null
+  let x = 0
+  let y = 0
+  const end = (e) => {
+    if (e.pointerId !== id) return
+    id = null
+    b.classList.remove('on')
+    actions.attackUp?.()
+  }
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (id !== null) return
+    id = e.pointerId
+    x = e.clientX
+    y = e.clientY
+    capture(b, id)
+    b.classList.add('on')
+    actions.attackDown?.()
+  })
+  b.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return
+    inputState.look.dx += (e.clientX - x) * TOUCH.lookScale
+    inputState.look.dy += (e.clientY - y) * TOUCH.lookScale
+    x = e.clientX
+    y = e.clientY
+  })
+  b.addEventListener('pointerup', end)
+  b.addEventListener('pointercancel', end)
+  return b
+}
+
+// actions: { mode, day, respawn, attackDown, attackUp } callbacks (the menu is Boxity's toolbar).
 export function installTouch(actions) {
   const root = el('div', 'touch-root')
   const left = el('div', 'touch-zone touch-left')
@@ -165,10 +203,11 @@ export function installTouch(actions) {
       b.classList.toggle('on', sprinting)
       setTouchSprint(sprinting)
     }),
-    button('jump', 'JUMP', () => {
-      inputState.jump = true
-    }),
+    jumpButton(),
+    attackButton(actions),
   )
+  const ability = abilityButton(actions)
+  cluster.appendChild(ability.el)
 
   root.append(left, right, top, cluster)
   document.body.appendChild(root)
@@ -183,4 +222,71 @@ export function installTouch(actions) {
     },
     { capture: true },
   )
+  return { setAbility: ability.set }
+}
+
+// Jump: a tap jumps; holding it keeps jumpHeld on (the glider kit glides).
+function jumpButton() {
+  const b = el('button', 'touch-btn jump', 'JUMP')
+  b.type = 'button'
+  let id = null
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    id = e.pointerId
+    capture(b, id)
+    inputState.jump = true
+    setTouchJumpHeld(true)
+  })
+  const end = (e) => {
+    if (e.pointerId !== id) return
+    id = null
+    setTouchJumpHeld(false)
+  }
+  b.addEventListener('pointerup', end)
+  b.addEventListener('pointercancel', end)
+  return b
+}
+
+// The kit ability: the kit's art, a cooldown shade and the ammo left; hidden when the
+// kit has none. Press = use (shield kits: hold to block).
+function abilityButton(actions) {
+  const b = el('button', 'touch-btn ability', '<img alt=""><i class="cd"></i><span class="cnt"></span>')
+  b.type = 'button'
+  const img = b.querySelector('img')
+  const cd = b.querySelector('.cd')
+  const cnt = b.querySelector('.cnt')
+  let id = null
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (id !== null) return
+    id = e.pointerId
+    capture(b, id)
+    b.classList.add('on')
+    actions.abilityDown?.()
+  })
+  const end = (e) => {
+    if (e.pointerId !== id) return
+    id = null
+    b.classList.remove('on')
+    actions.abilityUp?.()
+  }
+  b.addEventListener('pointerup', end)
+  b.addEventListener('pointercancel', end)
+  let shown = ''
+  // view: { iconUrl, cd 0..1, count, active } | null
+  const set = (view) => {
+    const key = view ? `${view.iconUrl}|${Math.round(view.cd * 30)}|${view.count}|${view.active}` : ''
+    if (key === shown) return
+    shown = key
+    b.classList.toggle('shown', !!view)
+    if (!view) return
+    if (img.src !== view.iconUrl) img.src = view.iconUrl
+    cd.style.height = `${Math.round(view.cd * 100)}%`
+    cnt.textContent = view.count === null || view.count === undefined ? '' : String(view.count)
+    b.classList.toggle('ready', view.cd <= 0 && view.count !== 0)
+    b.classList.toggle('active', !!view.active)
+  }
+  return { el: b, set }
 }

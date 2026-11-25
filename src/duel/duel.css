@@ -1,0 +1,195 @@
+/* The Duels window (hud.js PANELS.duels) */
+.hud-duels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.hud-duel-stats {
+  display: flex;
+  gap: clamp(8px, 3vw, 24px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.hud-duel-stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 84px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.08);
+}
+.hud-duel-stats small {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.hud-duel-stats b {
+  font-size: 20px;
+}
+.hud-duel-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+.hud-duel-modes .hud-big-btn {
+  flex-direction: column;
+  gap: 2px;
+  min-width: min(200px, 80vw);
+  justify-content: center;
+}
+.hud-duel-modes .hud-big-btn small {
+  font-size: 0.6em;
+  font-weight: 500;
+  opacity: 0.9;
+}
+.hud-duel-wait {
+  font-weight: 600;
+  animation: duel-pulse 1.4s ease-in-out infinite;
+}
+@keyframes duel-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.hud-duel-top {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: min(260px, 80vw);
+  font-size: 15px;
+}
+.hud-duel-top div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hud-duel-top span {
+  font-weight: 700;
+}
+
+/* Duel overlay (duels.js): score bar at the top, big countdown / result text. */
+.duel-bar {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + clamp(8px, 2vh, 18px));
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: clamp(8px, 2vw, 18px);
+  max-width: min(94vw, 560px);
+  padding: 0.3em 0.9em;
+  border-radius: 12px;
+  background: rgba(10, 14, 30, 0.6);
+  color: #fff;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-size: clamp(12px, 1.5vmin + 6px, 18px);
+  pointer-events: none;
+}
+.duel-bar.on {
+  display: flex;
+}
+/* touch: below the day / respawn buttons in the top-right corner */
+.touch-ui .duel-bar {
+  top: calc(env(safe-area-inset-top, 0px) + clamp(12px, 3vmin, 24px) + 52px);
+}
+.duel-bar .side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.duel-bar .side b {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 28vw;
+}
+.duel-bar .you b {
+  color: #ffe04a;
+}
+.duel-bar .them b {
+  color: #ff8a7a;
+}
+.duel-bar .mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.35em;
+  font-weight: 700;
+  line-height: 1;
+}
+.duel-bar .mid small {
+  font-size: 0.45em;
+  font-weight: 600;
+  opacity: 0.8;
+  letter-spacing: 0.08em;
+}
+.duel-bar .dots {
+  display: flex;
+  gap: 3px;
+}
+.duel-bar .dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+.duel-bar .you .dots i.on {
+  background: #ffe04a;
+  border-color: #ffe04a;
+}
+.duel-bar .them .dots i.on {
+  background: #ff5a4a;
+  border-color: #ff5a4a;
+}
+
+.duel-big {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(36px, 9vmin, 84px);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.duel-big.on {
+  animation: duel-big 0.9s ease-out forwards;
+}
+.duel-big.count {
+  color: #ffe04a;
+}
+.duel-big.go {
+  color: #7cff4a;
+}
+.duel-big.win {
+  color: #7cff4a;
+  animation-duration: 2.6s;
+}
+.duel-big.lose {
+  color: #ff6a5a;
+  animation-duration: 2.6s;
+}
+@keyframes duel-big {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

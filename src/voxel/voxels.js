@@ -7,8 +7,8 @@
 // touching faces are skipped explicitly, and plants are crossed quads that
 // only intersect along a line. Every material gets one geometry group, so
 // the whole lobby is a handful of draw calls.
-import { BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Mesh, MeshStandardMaterial, Uint32BufferAttribute } from 'three'
-import { blockTexture } from './blocktex.js'
+import { BufferGeometry, Color, DataArrayTexture, DoubleSide, Float32BufferAttribute, Group, LinearMipmapLinearFilter, Mesh, MeshDepthMaterial, MeshStandardMaterial, NearestFilter, RGBADepthPacking, RepeatWrapping, SRGBColorSpace, Uint32BufferAttribute } from 'three'
+import { TILE, onBlockRepaint, paintBlock } from './blocktex.js'
 import { RAPIER, addFixed } from '../physics.js'
 
 // --- Registry ----------------------------------------------------------------------
@@ -92,9 +92,9 @@ const DEFS = [
   { name: 'nether_brick_slab', tex: 'nether_bricks', shape: 'slab', sound: 'stone' },
   { name: 'nether_brick_stairs', tex: 'nether_bricks', shape: 'stair', sound: 'stone' },
   { name: 'nether_brick_fence', tex: 'nether_bricks', shape: 'fence', sound: 'stone' },
-  { name: 'glowstone', tex: 'glowstone', emissive: 2.1, light: ['#ffd27a', 15], roughness: 0.6, sound: 'glass' },
+  { name: 'glowstone', tex: 'glowstone', emissive: 1.6, light: ['#ffd27a', 15], roughness: 0.6, sound: 'glass' },
   { name: 'magma', tex: 'magma', emissive: 1.4, light: ['#ff5a14', 8], sound: 'stone' },
-  { name: 'lava', tex: 'lava', shape: 'liquid', liquid: 'lava', emissive: 2.0, light: ['#ff6a1a', 15], solid: false, roughness: 0.7 },
+  { name: 'lava', tex: 'lava', shape: 'liquid', liquid: 'lava', emissive: 1.35, light: ['#ff6a1a', 15], solid: false, roughness: 0.7 },
   { name: 'crimson_roots', tex: 'crimson_roots', shape: 'cross', kind: 'plant' },
   // --- arena: spring isles (end stone + purpur) ---
   { name: 'end_stone', tex: 'end_stone', randomTop: true, sound: 'stone' },
@@ -165,6 +165,11 @@ const OFF = 256
 const key = (x, y, z) => (x + OFF) + (y + OFF) * 512 + (z + OFF) * 262144
 const LIQUID_H = 14 / 16 // a liquid's surface sits 2 px below the top of its cell
 const ZERO = [0, 0, 0]
+// Cells per side of one render mesh (buildMesh). Measured against the old single
+// mesh with one material per block texture, over 9 lobby/arena views: 32 cuts draw
+// calls 6-59 % and triangles 9-52 % in every view; 24 saves ~5 % more triangles for
+// 10-40 % more draw calls than 32; 16 adds draw calls.
+const CHUNK = 32
 
 export class VoxelWorld {
   constructor() {
@@ -295,9 +300,16 @@ export class VoxelWorld {
   }
 
   // --- Mesh -------------------------------------------------------------------------
+  // Returns a Group of chunk meshes (CHUNK^3 cells each) so the renderer frustum-
+  // culls what is off screen or outside the sun's shadow box. Faces are emitted in
+  // world coordinates with AO / light / culling against neighbours in any chunk.
+  // Every block texture is a layer of one texture array per world and the block's
+  // layer / roughness / glow ride on the vertices, so a chunk needs at most four
+  // draws (solid, water, cutout, plant) instead of one per block texture.
   buildMesh() {
     const lit = !!this.light
-    const buckets = new Map() // material key -> { pos, nor, uv, col, bl, idx, ... }
+    const chunks = new Map() // chunk key -> Map(material key -> bucket)
+    let buckets = null // the current cell's chunk
     const bucket = (tex, kind, rough, emissive = 0) => {
       const k = `${tex}|${kind}|${rough}|${emissive}|${lit}`
       let b = buckets.get(k)
@@ -312,6 +324,9 @@ export class VoxelWorld {
       const x = (k % 512) - OFF
       const y = (Math.floor(k / 512) % 512) - OFF
       const z = Math.floor(k / 262144) - OFF
+      const ck = `${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)},${Math.floor(z / CHUNK)}`
+      buckets = chunks.get(ck)
+      if (!buckets) chunks.set(ck, (buckets = new Map()))
       const info = INFO[v & 255]
       const meta = v >> 8
       if (info.shape === 'cube') this.meshCube(x, y, z, info, bucket)
@@ -326,41 +341,18 @@ export class VoxelWorld {
       if (info.waterlogged) this.meshLiquid(x, y, z, WATER, bucket)
     }
 
-    const geo = new BufferGeometry()
-    const pos = []
-    const nor = []
-    const uv = []
-    const col = []
-    const bl = []
-    const idx = []
-    const materials = []
-    let start = 0
-    // see-through water last (it is drawn in the transparent pass anyway)
-    const list = [...buckets.values()].sort((a, b) => (a.kind === 'water') - (b.kind === 'water'))
-    for (const b of list) {
-      const base = pos.length / 3
-      for (let i = 0; i < b.pos.length; i++) pos.push(b.pos[i])
-      for (let i = 0; i < b.nor.length; i++) nor.push(b.nor[i])
-      for (let i = 0; i < b.uv.length; i++) uv.push(b.uv[i])
-      for (let i = 0; i < b.col.length; i++) col.push(b.col[i])
-      if (lit) for (let i = 0; i < b.bl.length; i++) bl.push(b.bl[i])
-      for (const i of b.idx) idx.push(i + base)
-      geo.addGroup(start, b.idx.length, materials.length)
-      start += b.idx.length
-      materials.push(makeMaterial(b))
+    const names = new Set()
+    for (const bs of chunks.values()) for (const b of bs.values()) if (b.idx.length) names.add(b.tex)
+    const set = worldMaterials([...names], lit)
+    const group = new Group()
+    group.name = 'voxels'
+    for (const [ck, chunkBuckets] of chunks) {
+      for (const mesh of chunkMeshes(chunkBuckets, lit, set)) {
+        mesh.name = `voxels ${ck}`
+        group.add(mesh)
+      }
     }
-    geo.setAttribute('position', new Float32BufferAttribute(pos, 3))
-    geo.setAttribute('normal', new Float32BufferAttribute(nor, 3))
-    geo.setAttribute('uv', new Float32BufferAttribute(uv, 2))
-    geo.setAttribute('color', new Float32BufferAttribute(col, 3))
-    if (lit) geo.setAttribute('blight', new Float32BufferAttribute(bl, 3))
-    geo.setIndex(new Uint32BufferAttribute(idx, 1))
-    geo.computeBoundingSphere()
-    const mesh = new Mesh(geo, materials)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.name = 'voxels'
-    return mesh
+    return group
   }
 
   // Full cube: 6 faces, each culled by an occluding neighbour, with AO.
@@ -605,6 +597,64 @@ export class VoxelWorld {
   }
 }
 
+// One chunk's buckets -> up to two meshes: solid + water (default shadow depth)
+// and cutout + plant (alpha-tested shadow depth from the texture array). Within a
+// mesh, buckets of the same kind are merged into one draw group.
+const KIND_ORDER = { opaque: 0, water: 1, cutout: 2, plant: 3 }
+function chunkMeshes(buckets, lit, set) {
+  const list = [...buckets.values()].filter((b) => b.idx.length).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+  const out = []
+  for (const cut of [false, true]) {
+    const part = list.filter((b) => (b.kind === 'cutout' || b.kind === 'plant') === cut)
+    if (!part.length) continue
+    const geo = new BufferGeometry()
+    const pos = []
+    const nor = []
+    const uv = []
+    const col = []
+    const bl = []
+    const bd = []
+    const idx = []
+    const materials = []
+    let start = 0
+    let kind = null
+    for (const b of part) {
+      const base = pos.length / 3
+      if (b.kind !== kind) {
+        if (kind !== null) geo.addGroup(start, idx.length - start, materials.length - 1)
+        start = idx.length
+        kind = b.kind
+        materials.push(set[kind])
+      }
+      for (let i = 0; i < b.pos.length; i++) pos.push(b.pos[i])
+      for (let i = 0; i < b.nor.length; i++) nor.push(b.nor[i])
+      for (let i = 0; i < b.uv.length; i++) uv.push(b.uv[i])
+      for (let i = 0; i < b.col.length; i++) col.push(b.col[i])
+      if (lit) for (let i = 0; i < b.bl.length; i++) bl.push(b.bl[i])
+      const layer = set.layers.get(b.tex)
+      const glow = b.emissive ? (GLOW_GROUP[b.tex] ?? 0) : 0
+      for (let i = 0; i < b.pos.length; i += 3) bd.push(layer, b.rough, b.emissive, glow)
+      for (const i of b.idx) idx.push(i + base)
+    }
+    geo.addGroup(start, idx.length - start, materials.length - 1)
+    geo.setAttribute('position', new Float32BufferAttribute(pos, 3))
+    geo.setAttribute('normal', new Float32BufferAttribute(nor, 3))
+    geo.setAttribute('uv', new Float32BufferAttribute(uv, 2))
+    geo.setAttribute('color', new Float32BufferAttribute(col, 3))
+    geo.setAttribute('bdata', new Float32BufferAttribute(bd, 4))
+    if (lit) geo.setAttribute('blight', new Float32BufferAttribute(bl, 3))
+    geo.setIndex(new Uint32BufferAttribute(idx, 1))
+    geo.computeBoundingSphere()
+    const mesh = new Mesh(geo, materials)
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    mesh.matrixAutoUpdate = false // static: never re-evaluate its transform
+    if (cut) mesh.customDepthMaterial = set.depth
+    out.push(mesh)
+  }
+  return out
+}
+
 // --- Face emission ---------------------------------------------------------------------
 // Each face: outward normal n, in-plane axes u, v with u x v = n.
 const FACES = [
@@ -721,45 +771,122 @@ function emitFace(b, x, y, z, f, x0, y0, z0, x1, y1, z1, world, rot, flat = null
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 const cornerLight = [ZERO, ZERO, ZERO, ZERO]
 
-const matCache = new Map()
-// Block light: the baked per-vertex colour is added as emission, tinted by the
-// surface's own (AO-shaded) albedo, so lit blocks keep their texture.
-function patchBlockLight(m) {
-  m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 blight;\nvarying vec3 vBlight;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlight = blight;')
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBlight;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vBlight;')
-  }
-  m.customProgramCacheKey = () => 'voxel-blocklight'
+// --- Block materials ------------------------------------------------------------------
+// Per world: one sRGB texture array (a layer per block texture, same filtering as
+// blockTexture: nearest up close, trilinear mipmaps + 8x anisotropy far away) and
+// four MeshStandardMaterials sharing it. The shader patch keeps the old per-texture
+// materials' maths: albedo = texel * vertex colour (AO), roughness per vertex,
+// emission = texel * the block's glow, plus baked block light tinted by the albedo.
+// Glow groups let the arena pulse lava / glowstone (setBlockGlow) with one uniform.
+const GLOW_GROUP = { lava: 1, glowstone: 2 }
+const glowUniform = { value: [-1, -1, -1] } // < 0: use the vertex's own glow
+export function setBlockGlow(tex, intensity) {
+  glowUniform.value[GLOW_GROUP[tex]] = intensity
 }
-function makeMaterial(b) {
-  const k = `${b.tex}|${b.kind}|${b.rough}|${b.emissive}|${b.lit}`
-  if (matCache.has(k)) return matCache.get(k)
-  const map = blockTexture(b.tex)
-  const water = b.kind === 'water'
-  const m = new MeshStandardMaterial({
-    map,
-    vertexColors: true,
-    roughness: b.rough,
-    metalness: 0,
-    alphaTest: b.kind === 'opaque' || water ? 0 : 0.5,
-    side: b.kind === 'plant' || water ? DoubleSide : undefined,
-    transparent: water,
-    opacity: water ? 0.8 : 1,
-    depthWrite: !water,
-  })
-  if (b.emissive) {
-    m.emissive = new Color('#ffffff')
-    m.emissiveMap = map
-    m.emissiveIntensity = b.emissive
+const arraysByTex = new Map() // block texture -> [{ tex: DataArrayTexture, layer }]
+onBlockRepaint((name, canvas) => {
+  const list = arraysByTex.get(name)
+  if (!list) return
+  const data = canvas.getContext('2d').getImageData(0, 0, TILE, TILE).data
+  for (const { tex, layer } of list) {
+    copyFlipped(data, tex.image.data, layer)
+    tex.needsUpdate = true
   }
-  if (b.lit) patchBlockLight(m)
-  m.name = b.tex
-  matCache.set(k, m)
+})
+// canvas rows run top-down; CanvasTexture flips them on upload (flipY), array layers cannot
+function copyFlipped(src, dst, layer) {
+  const o = layer * TILE * TILE * 4
+  const row = TILE * 4
+  for (let y = 0; y < TILE; y++) dst.set(src.subarray(y * row, y * row + row), o + (TILE - 1 - y) * row)
+}
+
+const VOXEL_VERT_HEAD = `#include <common>
+attribute vec4 bdata;
+uniform float blockGlow[3];
+varying vec3 vBTex;
+varying float vBRough;
+varying float vBGlow;
+#ifdef VOXEL_LIT
+attribute vec3 blight;
+varying vec3 vBlight;
+#endif`
+const VOXEL_VERT_BODY = `#include <begin_vertex>
+vBTex = vec3(uv, bdata.x);
+vBRough = bdata.y;
+int glowGroup = int(bdata.w + 0.5);
+vBGlow = glowGroup > 0 && blockGlow[glowGroup] >= 0.0 ? blockGlow[glowGroup] : bdata.z;
+#ifdef VOXEL_LIT
+vBlight = blight;
+#endif`
+const VOXEL_FRAG_HEAD = `#include <common>
+uniform highp sampler2DArray blockTex;
+varying vec3 vBTex;
+varying float vBRough;
+varying float vBGlow;
+#ifdef VOXEL_LIT
+varying vec3 vBlight;
+#endif`
+
+function voxelMaterial(params, arrayTex, lit) {
+  const m = new MeshStandardMaterial({ vertexColors: true, metalness: 0, ...params })
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.blockTex = { value: arrayTex }
+    sh.uniforms.blockGlow = glowUniform
+    if (lit) sh.defines = { ...sh.defines, VOXEL_LIT: '' }
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', VOXEL_VERT_HEAD).replace('#include <begin_vertex>', VOXEL_VERT_BODY)
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', VOXEL_FRAG_HEAD)
+      .replace('#include <map_fragment>', 'vec4 bTexel = texture(blockTex, vBTex);\ndiffuseColor *= bTexel;')
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vBRough;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        'totalEmissiveRadiance = bTexel.rgb * vBGlow;\n#ifdef VOXEL_LIT\ntotalEmissiveRadiance += diffuseColor.rgb * vBlight;\n#endif',
+      )
+  }
+  m.customProgramCacheKey = () => `voxel-array-${lit}`
+  m.userData.blockTex = arrayTex
   return m
 }
-// Every material built for a texture (the arena pulses lava's glow through this).
-export const materialsFor = (tex) => [...matCache.values()].filter((m) => m.name === tex)
+// Shadow depth for cutout/plant blocks: holes where the texture is transparent.
+function voxelDepthMaterial(arrayTex) {
+  const m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking })
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.blockTex = { value: arrayTex }
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 bdata;\nvarying vec3 vBTex;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBTex = vec3(uv, bdata.x);')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray blockTex;\nvarying vec3 vBTex;')
+      .replace('#include <alphatest_fragment>', 'if (texture(blockTex, vBTex).a < 0.5) discard;')
+  }
+  m.customProgramCacheKey = () => 'voxel-array-depth'
+  return m
+}
+
+function worldMaterials(names, lit) {
+  const n = Math.max(1, names.length)
+  const data = new Uint8Array(TILE * TILE * 4 * n)
+  const tex = new DataArrayTexture(data, TILE, TILE, n)
+  const layers = new Map()
+  names.forEach((name, i) => {
+    layers.set(name, i)
+    copyFlipped(paintBlock(name).getContext('2d').getImageData(0, 0, TILE, TILE).data, data, i)
+    if (!arraysByTex.has(name)) arraysByTex.set(name, [])
+    arraysByTex.get(name).push({ tex, layer: i })
+  })
+  tex.colorSpace = SRGBColorSpace
+  tex.magFilter = NearestFilter
+  tex.minFilter = LinearMipmapLinearFilter
+  tex.wrapS = tex.wrapT = RepeatWrapping
+  tex.anisotropy = 8
+  tex.generateMipmaps = true
+  tex.needsUpdate = true
+  return {
+    layers,
+    opaque: voxelMaterial({}, tex, lit),
+    cutout: voxelMaterial({ alphaTest: 0.5 }, tex, lit),
+    plant: voxelMaterial({ alphaTest: 0.5, side: DoubleSide }, tex, lit),
+    water: voxelMaterial({ transparent: true, opacity: 0.8, depthWrite: false, side: DoubleSide }, tex, lit),
+    depth: voxelDepthMaterial(tex),
+  }
+}

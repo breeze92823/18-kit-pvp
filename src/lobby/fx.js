@@ -71,11 +71,13 @@ const squareTex = () =>
 // --- Particle system -----------------------------------------------------------------------------
 const vert = /* glsl */ `
   attribute float size; attribute vec4 tint;
-  uniform float scale;
+  uniform float scale; uniform float nearFade;
   varying vec4 vTint;
   void main() {
     vTint = tint;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    // particles that brush past the camera fade out instead of filling the screen
+    if (nearFade > 0.0) vTint.a *= smoothstep(nearFade, nearFade * 2.5, -mv.z);
     gl_PointSize = size * scale / -mv.z;
     gl_Position = projectionMatrix * mv;
   }`
@@ -90,7 +92,7 @@ const frag = /* glsl */ `
   }`
 
 export class Particles {
-  constructor(max, { texture, additive = true, hdr = 1, depthTest = true }) {
+  constructor(max, { texture, additive = true, hdr = 1, depthTest = true, nearFade = 0 }) {
     this.max = max
     this.n = 0
     this.p = [] // pool of particle records
@@ -104,7 +106,7 @@ export class Particles {
     geo.setAttribute('tint', new BufferAttribute(this.tint, 4))
     geo.setDrawRange(0, 0)
     this.material = new ShaderMaterial({
-      uniforms: { map: { value: texture }, scale: { value: 600 }, hdr: { value: hdr } },
+      uniforms: { map: { value: texture }, scale: { value: 600 }, hdr: { value: hdr }, nearFade: { value: nearFade } },
       vertexShader: vert,
       fragmentShader: frag,
       transparent: true,

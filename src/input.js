@@ -10,6 +10,7 @@ export const inputState = {
   zoom: 0, // wheel notches since the camera last read them (+ = away)
   sprint: false,
   jump: false, // edge: cleared by player.js
+  jumpHeld: false, // jump key / button held down (glider kit)
 }
 
 // One wheel notch per WheelEvent.deltaMode (pixels, lines, pages), so a trackpad
@@ -20,7 +21,7 @@ const held = new Set()
 const keyActions = new Map() // code -> fn, for one-shot keys (mode toggle, day/night...)
 let orbiting = false // right-drag fallback where pointer lock is refused
 let canvas = null
-const touch = { x: 0, z: 0, sprint: false }
+const touch = { x: 0, z: 0, sprint: false, jumpHeld: false }
 
 export const isLocked = () => !!canvas && document.pointerLockElement === canvas
 // Pointer lock can reject (sandboxed frame, post-Escape cooldown); that is not a fault.
@@ -45,6 +46,12 @@ function recomputeMove() {
   inputState.move.x = Math.max(-1, Math.min(1, x + touch.x))
   inputState.move.z = Math.max(-1, Math.min(1, z + touch.z))
   inputState.sprint = held.has('ShiftLeft') || held.has('ShiftRight') || touch.sprint
+  inputState.jumpHeld = held.has('Space') || touch.jumpHeld
+}
+
+export function setTouchJumpHeld(on) {
+  touch.jumpHeld = on
+  recomputeMove()
 }
 
 // Joystick vector, each axis -1..1 (analog: a half tilt walks at half speed).

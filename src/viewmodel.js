@@ -39,9 +39,12 @@ export function createViewmodel(camera) {
   const ITEM_POS = [0.5, -0.44, -0.8]
   const ITEM_ROT = [-0.05, -1.12, 1.62] // blade up and to the left, flat side half toward you
   const ARM_POS = [0.3, -0.3, -0.42]
+  const BOW_POS = [0.34, -0.32, -0.8] // the bow is held upright, facing you, closer to the middle
+  const BOW_ROT = [0, -0.25, 0.8]
   item.rotation.order = 'YXZ'
 
   let current = 'sword'
+  let bow = false
   let swingT = 0
   let equipT = 0
   let phase = 0
@@ -52,8 +55,9 @@ export function createViewmodel(camera) {
     if (icon === current) return
     current = icon
     equipT = 1
+    bow = !!icon && icon.startsWith('bow')
     if (icon) {
-      item.geometry = itemGeometry(icon, icon === 'sword' || icon === 'axe' ? 0.85 : 0.55, 1)
+      item.geometry = itemGeometry(icon, bow ? 0.56 :/^(sword|axe|mace|trident|wand|pickaxe)/.test(icon) ? 0.85 : 0.55, 1)
       item.visible = true
       arm.visible = false
     } else {
@@ -62,11 +66,31 @@ export function createViewmodel(camera) {
     }
   }
 
+  let draw = 0 // 0..1 bow draw: pulls the item back and in, shaking at full draw
+  // shield in the left hand, raised while blocking
+  const shield = new Mesh(itemGeometry('shield', 0.7, 1), itemMat)
+  shield.renderOrder = 1000
+  shield.frustumCulled = false
+  shield.visible = false
+  holder.add(shield)
+  let shieldIcon = 'shield'
+  let block = 0
+  let blocking = false
   return {
     holder,
     setItem,
     swing() {
       if (swingT <= 0.35) swingT = 1
+    },
+    setDraw(k) {
+      draw = k
+    },
+    setBlock(on, icon = 'shield') {
+      blocking = on
+      if (icon !== shieldIcon) {
+        shieldIcon = icon
+        shield.geometry = itemGeometry(icon, 0.7, 1)
+      }
     },
     update(dt, { speed = 0, grounded = true, lookDx = 0, lookDy = 0, visible = true }) {
       holder.visible = visible
@@ -81,14 +105,22 @@ export function createViewmodel(camera) {
       const e = Math.sin(equipT * Math.PI * 0.5)
       const bobX = Math.cos(phase) * 0.018 * walk
       const bobY = -Math.abs(Math.sin(phase)) * 0.026 * walk
-      pivot.position.set(bobX + sway.x - s * 0.22, bobY + sway.y - e * 0.35 + s * 0.05, -s * 0.08)
+      const shake = draw >= 1 ? Math.sin(phase * 9) * 0.003 : 0
+      pivot.position.set(bobX + sway.x - s * 0.22 - draw * 0.12 + shake, bobY + sway.y - e * 0.35 + s * 0.05 + draw * 0.05, -s * 0.08 + draw * 0.1)
       pivot.rotation.set(-s * 0.9, s * 0.5, s * 0.35)
       // keep the item on screen on narrow (portrait) views
       const halfW = Math.tan((camera.fov * Math.PI) / 360) * -ITEM_POS[2] * camera.aspect
-      item.position.set(Math.min(ITEM_POS[0], halfW * 0.62), ITEM_POS[1], ITEM_POS[2])
-      item.rotation.set(ITEM_ROT[0], ITEM_ROT[1], ITEM_ROT[2])
+      const P = bow ? BOW_POS : ITEM_POS
+      const Rt = bow ? BOW_ROT : ITEM_ROT
+      item.position.set(Math.min(P[0], halfW * 0.62), P[1], P[2])
+      item.rotation.set(Rt[0], Rt[1], Rt[2] + (bow ? draw * 0.12 : 0))
       arm.position.set(...ARM_POS)
       arm.rotation.set(0.25, -0.35, 0)
+      // the shield slides up in front of you while blocking
+      block += ((blocking ? 1 : 0) - block) * Math.min(1, dt * 14)
+      shield.visible = block > 0.02
+      shield.position.set(-0.3 + block * 0.12 + bobX, -0.75 + block * 0.42 + bobY, -0.62)
+      shield.rotation.set(0, 0.35 - block * 0.25, 0)
     },
   }
 }

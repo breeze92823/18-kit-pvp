@@ -1,7 +1,7 @@
 import { inputState } from './input.js'
 import { getYaw, syncYawToPlayer } from './camera.js'
 import { isFirstPerson } from './modes.js'
-import { RAPIER, alpha, onTick, world } from './physics.js'
+import { RAPIER, alpha, onTick, setStaticFocus, world } from './physics.js'
 import { PHYSICS, PLAYER_DIMS, SPAWN, SPAWN_FACING } from './config.js'
 
 // The local player singleton, mutated in place. A kinematic Rapier capsule
@@ -18,6 +18,25 @@ export const player = {
   facing: SPAWN_FACING, // yaw the character model faces, radians
   dims: { ...PLAYER_DIMS },
 }
+
+// What the player is moving through, set every frame by main.js (the arena's liquids,
+// ladders and the drop). killY / onVoid replace the plain respawn when you fall out.
+export const playerEnv = {
+  swim: 0, // 0 = air, 1 = fully in a liquid (water / lava): slow, floaty, jump = swim up
+  speedMul: 1,
+  climb: false, // on a ladder: forward climbs, otherwise slide down slowly
+  maxFall: 0, // m/s cap on falling speed (0 = none)
+  killY: PHYSICS.killY,
+  onVoid: null,
+  // kit movement powers + statuses (set every frame by combat.js in the arena)
+  jumpMul: 1, // spring boots
+  airJumps: 0, // ninja double jump
+  glide: false, // glider: hold jump while falling
+  noJump: false, // rooted / frozen
+  noSprint: false, // hungry / blocking
+  swimFast: false, // poseidon: no water slowdown
+}
+let airJumpsLeft = 0
 
 const HALF = PLAYER_DIMS.height / 2 // capsule centre above the feet
 const prev = { x: 0, y: 0, z: 0 }
@@ -54,6 +73,16 @@ export function resetPlayer(spawn = SPAWN, facing = SPAWN_FACING) {
   player.facing = facing
   body?.setTranslation({ x: spawn.x, y: spawn.y + HALF, z: spawn.z }, true)
   body?.setNextKinematicTranslation({ x: spawn.x, y: spawn.y + HALF, z: spawn.z })
+}
+
+// A hit's knockback (combat.js): added to the velocity on the next tick, which also
+// lifts you off the ground so the shove carries through the air.
+const kick = { x: 0, y: 0, z: 0, on: false }
+export function knockback(vx, vy, vz) {
+  kick.x += vx
+  kick.z += vz
+  kick.y = Math.max(kick.y, vy)
+  kick.on = true
 }
 
 export function respawn() {
@@ -100,9 +129,12 @@ function step(dt) {
   const scale = len > 1 ? 1 / len : 1
   const wishX = (fwdX * mv.z + rightX * mv.x) * scale
   const wishZ = (fwdZ * mv.z + rightZ * mv.x) * scale
-  const speed = inputState.sprint ? PHYSICS.sprintSpeed : PHYSICS.walkSpeed
+  const env = playerEnv
+  const sprint = inputState.sprint && !env.noSprint
+  const speed = (sprint ? PHYSICS.sprintSpeed : PHYSICS.walkSpeed) * env.speedMul * (1 - env.swim * (env.swimFast ? 0 : 0.45))
+  const gliding = env.glide && inputState.jumpHeld && !player.grounded && env.swim < 0.3 && player.velocity.y < 0
 
-  const rate = !player.grounded ? PHYSICS.airAccel : len > 0.01 ? PHYSICS.accel : PHYSICS.decel
+  const rate = gliding ? PHYSICS.airAccel * 1.6 : !player.grounded ? PHYSICS.airAccel : len > 0.01 ? PHYSICS.accel : PHYSICS.decel
   approach2D(player.velocity, wishX * speed, wishZ * speed, rate * dt)
 
   // Jump: buffered a little before landing, and allowed a little after leaving a ledge.
@@ -111,19 +143,52 @@ function step(dt) {
     inputState.jump = false
   }
   sinceGrounded = player.grounded ? 0 : sinceGrounded + dt
+  if (player.grounded || env.swim > 0.3) airJumpsLeft = env.airJumps
+  if (env.noJump) jumpQueued = 0
   let jumped = false
-  if (jumpQueued > 0 && sinceGrounded <= PHYSICS.coyoteTime) {
-    player.velocity.y = PHYSICS.jumpSpeed
+  if (jumpQueued > 0 && env.swim > 0.3 && !player.grounded) {
+    // a swim stroke upward (tap jump to rise, enough to climb out over a bank)
+    player.velocity.y = Math.max(player.velocity.y, 5.6)
+    jumpQueued = 0
+    jumped = true
+  } else if (jumpQueued > 0 && sinceGrounded <= PHYSICS.coyoteTime) {
+    player.velocity.y = PHYSICS.jumpSpeed * (env.swim > 0.3 ? 1.05 : env.jumpMul)
     jumpQueued = 0
     sinceGrounded = PHYSICS.coyoteTime + 1
     jumped = true
+  } else if (jumpQueued > 0 && airJumpsLeft > 0 && !player.grounded && sinceGrounded > 0.15) {
+    // double jump
+    player.velocity.y = PHYSICS.jumpSpeed * 0.95
+    airJumpsLeft--
+    jumpQueued = 0
+    jumped = true
   }
   jumpQueued = Math.max(0, jumpQueued - dt)
+  if (kick.on) {
+    player.velocity.x += kick.x
+    player.velocity.z += kick.z
+    player.velocity.y = Math.max(player.velocity.y, kick.y)
+    kick.x = kick.y = kick.z = 0
+    kick.on = false
+    jumped = true
+  }
 
-  player.velocity.y += PHYSICS.gravity * dt
+  player.velocity.y += PHYSICS.gravity * dt * (1 - env.swim * 0.7)
+  if (env.swim > 0.3) {
+    player.velocity.y *= Math.exp(-2.2 * dt) // water drag
+    if (player.velocity.y < -3) player.velocity.y = -3
+  }
+  if (env.climb) {
+    if (mv.z > 0.2 || mv.x * mv.x > 0.04) player.velocity.y = 3.4
+    else if (player.velocity.y < -1.6) player.velocity.y = -1.6
+  }
+  if (env.maxFall && player.velocity.y < -env.maxFall) player.velocity.y = -env.maxFall
+  if (gliding && player.velocity.y < -2.4) player.velocity.y = -2.4
   if (player.grounded && !jumped && player.velocity.y < -2) player.velocity.y = -2 // stay pressed to slopes
 
   const desired = { x: player.velocity.x * dt, y: player.velocity.y * dt, z: player.velocity.z * dt }
+  const at = body.translation()
+  setStaticFocus(at.x, at.y, at.z) // simulate the static colliders around us (physics.js)
   controller.computeColliderMovement(collider, desired, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS)
   const moved = controller.computedMovement()
   player.grounded = !jumped && controller.computedGrounded()
@@ -134,15 +199,16 @@ function step(dt) {
   // Horizontal velocity is left alone: the controller already slides along walls,
   // and scaling it by moved/desired would also bleed speed on every ramp and step.
 
-  const t = body.translation()
+  const t = at
   const next = { x: t.x + moved.x, y: t.y + moved.y, z: t.z + moved.z }
   body.setNextKinematicTranslation(next)
   player.position.x = next.x
   player.position.y = next.y - HALF
   player.position.z = next.z
 
-  if (player.position.y < PHYSICS.killY) {
-    respawn()
+  if (player.position.y < env.killY) {
+    if (env.onVoid) env.onVoid()
+    else respawn()
     return
   }
 

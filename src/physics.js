@@ -2,7 +2,8 @@
 // accumulator; every dynamic body bound to a mesh keeps its previous and
 // current transform so rendering interpolates between ticks (smooth at any
 // refresh rate). Static geometry registers fixed colliders through the add*
-// helpers; the player's kinematic capsule lives in player.js.
+// helpers (mirrored into a never-stepped query world, see below); the player's
+// kinematic capsule lives in player.js.
 import RAPIER from '@dimforge/rapier3d-compat'
 import { Quaternion, Vector3 } from 'three'
 import { PHYSICS } from './config.js'
@@ -15,11 +16,55 @@ const tickListeners = []
 let accumulator = 0
 export let alpha = 0 // 0..1 of the way from the last tick to the next one
 
+// --- Static colliders: queried everywhere, simulated only near the player ------
+// Rapier's step (broad phase + query-pipeline rebuild) costs time for every
+// enabled collider, even ones that never move: the lobby + arena voxels are
+// ~6.5k cuboids, which made each 60 Hz tick cost 3-4 ms. So each fixed collider
+// exists twice: in `staticWorld`, which is never stepped and answers the
+// static-only ray casts from anywhere (camera, bot line of sight, aiming), and
+// in `world`, where it is enabled only within NEAR_CELLS cells of the focus
+// (the player's capsule: the only body that touches static geometry; the bots
+// are kinematic and walk the voxels themselves).
+const CELL = 8 // m
+const NEAR_CELLS = 1 // enabled: the focus cell and its neighbours (>= 8 m of margin; a tick moves < 1.5 m)
+let staticWorld = null
+let staticDirty = false // staticWorld's query pipeline needs a rebuild
+const fixed = new Set() // { main, stat, c0, c1, on, always }
+let focus = null // { x, y, z } cell of the focus
+
 export async function initPhysics() {
   await RAPIER.init()
   world = new RAPIER.World({ x: 0, y: PHYSICS.gravity, z: 0 })
   world.timestep = PHYSICS.fixedStep
+  staticWorld = new RAPIER.World({ x: 0, y: 0, z: 0 })
   return world
+}
+
+const nearFocus = (r) =>
+  r.always ||
+  (!!focus &&
+    r.c1[0] >= focus.x - NEAR_CELLS && r.c0[0] <= focus.x + NEAR_CELLS &&
+    r.c1[1] >= focus.y - NEAR_CELLS && r.c0[1] <= focus.y + NEAR_CELLS &&
+    r.c1[2] >= focus.z - NEAR_CELLS && r.c0[2] <= focus.z + NEAR_CELLS)
+
+// Call before moving the player's controller, with its position. Cheap unless
+// the focus enters a new cell; then colliders are switched on/off and the
+// stepped world's query pipeline is refreshed so the controller sees them at once.
+export function setStaticFocus(x, y, z) {
+  const cx = Math.floor(x / CELL)
+  const cy = Math.floor(y / CELL)
+  const cz = Math.floor(z / CELL)
+  if (focus && focus.x === cx && focus.y === cy && focus.z === cz) return
+  focus = { x: cx, y: cy, z: cz }
+  let changed = false
+  for (const r of fixed) {
+    const want = nearFocus(r)
+    if (want === r.on) continue
+    r.main.setEnabled(want)
+    r.on = want
+    changed = true
+  }
+  if (changed) world.queryPipeline.update(world.colliders)
 }
 
 // fn(dt) runs before every physics tick (the player controller moves here).
@@ -93,10 +138,38 @@ export function addDynamic(mesh, shape, { density = 1, friction = 0.6, restituti
 }
 
 // Fixed collider at a world transform (no body needed for static geometry).
+// Returns a handle for removeFixed.
 export function addFixed(shape, position, rotation = null, { friction = 0.8, restitution = 0 } = {}) {
   shape.setTranslation(position.x, position.y, position.z).setFriction(friction).setRestitution(restitution)
   if (rotation) shape.setRotation({ x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w })
-  return world.createCollider(shape)
+  const r = { main: world.createCollider(shape), stat: staticWorld.createCollider(shape), on: true, always: false }
+  // cell range from the shape's bounds: an exact box when unrotated, else a bounding sphere
+  const s = shape.shape
+  let he = null
+  if (s.halfExtents && !rotation) he = s.halfExtents
+  else {
+    const rad = s.halfExtents ? Math.hypot(s.halfExtents.x, s.halfExtents.y, s.halfExtents.z) : s.radius !== undefined ? Math.hypot(s.radius, s.halfHeight ?? 0) : null
+    if (rad === null) r.always = true // unknown shape: keep it simulated everywhere
+    else he = { x: rad, y: rad, z: rad }
+  }
+  if (he) {
+    r.c0 = [Math.floor((position.x - he.x) / CELL), Math.floor((position.y - he.y) / CELL), Math.floor((position.z - he.z) / CELL)]
+    r.c1 = [Math.floor((position.x + he.x) / CELL), Math.floor((position.y + he.y) / CELL), Math.floor((position.z + he.z) / CELL)]
+  }
+  if (!nearFocus(r)) {
+    r.main.setEnabled(false)
+    r.on = false
+  }
+  fixed.add(r)
+  staticDirty = true
+  return r
+}
+
+export function removeFixed(r) {
+  if (!fixed.delete(r)) return
+  world.removeCollider(r.main, false)
+  staticWorld.removeCollider(r.stat, false)
+  staticDirty = true
 }
 
 // Fixed box matching a BoxGeometry mesh (uses the mesh's world position/rotation and geometry size).
@@ -120,8 +193,12 @@ export function segmentClear(ax, ay, az, bx, by, bz) {
   const dz = bz - az
   const len = Math.hypot(dx, dy, dz)
   if (len < 1e-4) return 1
+  if (staticDirty) {
+    staticWorld.queryPipeline.update(staticWorld.colliders)
+    staticDirty = false
+  }
   const r = new RAPIER.Ray({ x: ax, y: ay, z: az }, { x: dx / len, y: dy / len, z: dz / len })
-  const hit = world.castRay(r, len, true, STATIC_ONLY())
+  const hit = staticWorld.castRay(r, len, true, STATIC_ONLY())
   if (!hit) return 1
   return (hit.timeOfImpact ?? hit.toi) / len
 }

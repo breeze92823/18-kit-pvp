@@ -295,10 +295,10 @@ export const ARENA = {
   fadeTime: 0.6,
   cx: 0,
   cz: -7,
-  floorY: -150,
+  floorY: -115,
   half: 46, // quadrant size in blocks (the void seams between quadrants are 2 wide)
   plazaR: 15.5,
-  voidY: -195, // fell off: dead
+  voidY: -160, // fell off: dead
   maxFall: 34, // m/s terminal speed for the drop
   softHeight: 24, // m above the landing spot the drop starts easing
   softSpeed: 11, // m/s at touchdown
@@ -319,21 +319,35 @@ export const BIOMES = {
   frost: { name: 'Frost Peaks', color: '#9fe6ff' },
   fire: { name: 'Fire Lands', color: '#ff7a3a' },
 }
+// Plaza power-ups (arena/pickups.js) and the arena's event text. Local per client.
+export const ARENA_EVENTS = {
+  powerups: {
+    radius: 1.3, // m from a glowstone tile
+    respawn: 25, // s until a taken power-up is back (as a random kind)
+    kinds: {
+      speed: { color: '#6ad8ff', label: 'Speed boost', s: 12 },
+      heal: { color: '#ff5a6a', label: 'Health', hp: 8 },
+      regen: { color: '#7dff7a', label: 'Regeneration', hp: 10, s: 6 },
+    },
+  },
+  // text only: "<biome> is about to collapse", nothing changes in the world
+  biome: { first: [50, 90], every: [90, 150], warn: 10, biomes: ['spring', 'summer', 'frost', 'fire'] },
+}
 // The arena's sky: a black starry void (both moods, so N does not change it).
 export const ARENA_SKY = {
   zenith: '#010103',
   horizon: '#030308',
-  sunColor: '#e6ecff',
-  sunIntensity: 1.7,
+  sunColor: '#eef2ff',
+  sunIntensity: 2.3,
   sunElevation: 62,
   sunAzimuth: 35,
-  hemiSky: '#a4b0d8',
-  hemiGround: '#3a2a30',
-  hemiIntensity: 1.05,
+  hemiSky: '#c8d0ee',
+  hemiGround: '#4a3a40',
+  hemiIntensity: 1.5,
   envIntensity: 0.2,
   lampIntensity: 0,
   stars: 1,
-  exposure: 1.0,
+  exposure: 1.05,
   fogNear: 110,
   fogFar: 360,
 }
@@ -344,23 +358,67 @@ export const CRATES = {
   ranked: { name: 'Ranked Crate', price: 900, color: '#e04bff' },
 }
 export const DAILY_REWARD = [100, 150, 200, 250, 300, 400, 600] // gold per streak day
+// What a brand-new save starts with (state.js fresh()): some Gold and golden apples in the hotbar.
+export const STARTER = { gold: 150, apples: 2 }
 
-// Kits picked at the Kit NPC (K). Free ones are owned from the start; the rest cost Gold.
-// armor = armor points out of 20 shown on the HUD bar when the kit is selected.
-export const KITS = [
-  { id: 'knight', name: 'Knight', icon: 'sword', price: 0, armor: 15, desc: 'Iron sword and a full set of iron armor.' },
-  { id: 'archer', name: 'Archer', icon: 'bow', price: 0, armor: 9, desc: 'Bow with 32 arrows and light leather armor.' },
-  { id: 'tank', name: 'Tank', icon: 'shield', price: 600, armor: 20, desc: 'Shield and heavy armor. Slow but sturdy.' },
-  { id: 'medic', name: 'Medic', icon: 'heal', price: 800, armor: 11, desc: 'Heals nearby allies and starts with 3 apples.' },
-  { id: 'warper', name: 'Warper', icon: 'orb', price: 1000, armor: 10, desc: 'Three warp orbs to blink across the arena.' },
-  { id: 'pyro', name: 'Pyro', icon: 'flame', price: 1200, armor: 12, desc: 'Fire sword: every hit sets the target alight.' },
-  { id: 'frost', name: 'Frost', icon: 'snow', price: 1500, armor: 12, desc: 'Snowballs slow enemies down on hit.' },
-  { id: 'berserker', name: 'Berserker', icon: 'axe', price: 2000, armor: 8, desc: 'Heavy axe. Hits harder the lower your health.' },
+// Kits (K): the full-screen Kits screen. Level 1 kits are free; every other kit
+// needs the player level AND costs Gold (never premium currency, CLAUDE.md).
+// [id, name, icon art (lobby/pixelart.js), accent colour, level, armor points /20, armor set, description]
+// armor sets: leather | chain | iron | gold | diamond | dark | emerald | ruby | frost (lobby/characters.js)
+const KIT_TABLE = [
+  ['swordsman', 'Swordsman', 'sword', '#9a9aa0', 1, 15, 'iron', 'An iron sword and a full set of iron armor. Simple and reliable.'],
+  ['archer', 'Archer', 'bow', '#b07a3e', 1, 9, 'leather', 'A bow with 32 arrows and light leather armor. Hit them from afar.'],
+  ['bouncer', 'Bouncer', 'wand', '#9a6ad0', 1, 11, 'chain', 'A knockback stick that sends enemies flying off the edge.'],
+  ['glider', 'Glider', 'feather', '#cfd6dc', 2, 9, 'leather', 'Hold jump in the air to glide slowly across the void.'],
+  ['spring', 'Spring', 'spring', '#3aa02a', 4, 10, 'chain', 'Spring boots: jump three blocks high and take no fall damage.'],
+  ['tnt', 'TNT', 'tnt', '#d8302a', 6, 10, 'leather', 'Throws lit TNT that blasts blocks and players apart.'],
+  ['snowman', 'Snowman', 'snow', '#9cc4f6', 8, 11, 'frost', 'Snowballs that slow enemies down on every hit.'],
+  ['grappler', 'Grappler', 'hook', '#7a7a84', 10, 10, 'chain', 'A grappling hook that pulls you to any block it hits.'],
+  ['tank', 'Tank', 'shield', '#2f5fb8', 12, 20, 'iron', 'Shield and heavy armor. Slow but almost impossible to knock back.'],
+  ['medic', 'Medic', 'heal', '#e83a3a', 14, 11, 'leather', 'Heals nearby allies and starts with 3 golden apples.'],
+  ['pyro', 'Pyro', 'flame', '#e0401a', 16, 12, 'ruby', 'Fire sword: every hit sets the target alight.'],
+  ['warper', 'Warper', 'orb', '#1f9a8a', 18, 10, 'chain', 'Three warp orbs to blink across the arena.'],
+  ['miner', 'Miner', 'pickaxe_iron', '#8a8a8a', 20, 12, 'iron', 'Mines through blocks fast and places walls for cover.'],
+  ['frost', 'Frost', 'sword_ice', '#3a9ad0', 23, 13, 'frost', 'An ice blade that freezes enemies for half a second.'],
+  ['ninja', 'Ninja', 'star', '#e0a010', 26, 8, 'dark', 'Throwing stars and a double jump. Fast and fragile.'],
+  ['viking', 'Viking', 'axe', '#8a5a2b', 29, 14, 'iron', 'A heavy axe that breaks shields on hit.'],
+  ['alchemist', 'Alchemist', 'potion', '#e0507a', 32, 9, 'leather', 'Splash potions of harm, slowness and healing.'],
+  ['ranger', 'Ranger', 'bow_gold', '#f0c832', 35, 11, 'chain', 'Golden bow: arrows fly faster and pierce shields.'],
+  ['druid', 'Druid', 'wand_nature', '#3a7a2a', 38, 10, 'emerald', 'Grows vines that root enemies to the ground.'],
+  ['pirate', 'Pirate', 'sword_gold', '#c89614', 42, 13, 'gold', 'A golden cutlass. Every kill drops extra Gold.'],
+  ['bomber', 'Bomber', 'orb_fire', '#d84a1a', 46, 10, 'ruby', 'Fire bombs that leave burning ground behind.'],
+  ['crusader', 'Crusader', 'shield_red', '#c82a2a', 50, 18, 'iron', 'Sword and a red tower shield that blocks arrows.'],
+  ['poseidon', 'Poseidon', 'trident', '#3ad0d0', 54, 13, 'diamond', 'A trident you can throw. Faster in water.'],
+  ['reaper', 'Reaper', 'axe_dark', '#4a4a5a', 58, 11, 'dark', 'Every kill restores 3 hearts.'],
+  ['vampire', 'Vampire', 'sword_red', '#a01c1c', 62, 12, 'dark', 'Steals a bit of health with every hit.'],
+  ['stormcaller', 'Stormcaller', 'wand_ice', '#8ad8ff', 66, 11, 'diamond', 'Calls lightning on the enemy you hit three times in a row.'],
+  ['engineer', 'Engineer', 'pickaxe', '#3aa0a8', 70, 13, 'iron', 'Builds a turret that shoots arrows at enemies.'],
+  ['necromancer', 'Necromancer', 'wand_dark', '#ff3a5a', 74, 10, 'dark', 'Raises two zombies to fight for you.'],
+  ['hunter', 'Hunter', 'bow_dark', '#6a4a8a', 78, 11, 'leather', 'Marks targets: they glow through walls for 5 seconds.'],
+  ['samurai', 'Samurai', 'sword_jade', '#1a7a3a', 82, 13, 'emerald', 'A quick katana with a dash strike.'],
+  ['beekeeper', 'Beekeeper', 'apple', '#f0c020', 86, 10, 'gold', 'Releases a swarm of bees that chase enemies.'],
+  ['ghost', 'Ghost', 'orb_ghost', '#c8d8e8', 90, 8, 'chain', 'Turns invisible for 4 seconds after taking damage.'],
+  ['golem', 'Golem', 'shield_gold', '#e0a010', 94, 20, 'gold', 'Huge health and a ground slam that knocks everyone back.'],
+  ['assassin', 'Assassin', 'sword_dark', '#5a4a70', 98, 9, 'dark', 'Hits from behind deal double damage.'],
+  ['blaze', 'Blaze', 'flame_blue', '#3a8aff', 102, 12, 'diamond', 'Blue fireballs that burn twice as hot.'],
+  ['gladiator', 'Gladiator', 'trident_gold', '#f0c832', 106, 16, 'gold', 'A golden spear. Each kill gives a stacking damage buff.'],
+  ['plague', 'Plague Bringer', 'potion_green', '#5ad04a', 110, 10, 'leather', 'Poison clouds that linger around the arena.'],
+  ['warden', 'Warden', 'orb_void', '#5a2a9a', 114, 17, 'dark', 'A sonic boom that goes through walls.'],
+  ['berserker', 'Berserker', 'axe_gold', '#f0c832', 118, 8, 'gold', 'Hits harder the lower your health is.'],
+  ['monk', 'Monk', 'heal_green', '#4ad04a', 121, 9, 'leather', 'Fists only, but every punch heals you a little.'],
+  ['chronomancer', 'Chronomancer', 'clock', '#ffd23a', 125, 11, 'gold', 'Rewinds you to where you were 3 seconds ago.'],
+  ['crusher', 'Crusher', 'mace', '#5a5a68', 128, 15, 'iron', 'A mace that hits harder the further you fell.'],
+  ['phoenix', 'Phoenix', 'wand_fire', '#e07a20', 132, 12, 'ruby', 'Comes back to life once per round in a burst of fire.'],
+  ['mystic', 'Mystic', 'potion_purple', '#a05ae0', 136, 10, 'dark', 'Swaps places with the enemy you hit.'],
+  ['champion', 'Champion', 'mace_gold', '#f0c832', 140, 17, 'gold', 'A golden mace and golden armor. The ultimate kit.'],
 ]
+// Gold price grows with the level requirement (rounded to 25).
+const kitPrice = (level) => (level <= 1 ? 0 : Math.round((6 * level ** 1.75 + 40) / 25) * 25)
+export const KITS = KIT_TABLE.map(([id, name, icon, color, level, armor, armorSet, desc]) => ({ id, name, icon, color, level, armor, armorSet, desc, price: kitPrice(level) }))
 
 // Shop (B): consumables that go to the hotbar, priced in Gold.
 export const SHOP_ITEMS = [
-  { id: 'apple', name: 'Golden Apple', icon: 'apple', price: 120, desc: 'Restores 4 hearts over a few seconds.' },
+  { id: 'apple', name: 'Golden Apple', icon: 'apple', price: 80, desc: 'Restores 4 hearts over a few seconds.' },
   { id: 'potion', name: 'Speed Potion', icon: 'potion', price: 150, desc: '+30% move speed for 20 seconds.' },
   { id: 'orb', name: 'Warp Orb', icon: 'orb', price: 200, desc: 'Throw it and teleport where it lands.' },
   { id: 'steak', name: 'Steak', icon: 'steak', price: 40, desc: 'Fills your hunger bar.' },
@@ -380,3 +438,207 @@ export const LOOKS = [
 
 // XP needed to go from `level` to the next.
 export const xpForLevel = (level) => 32 + (level - 1) * 16
+
+// Arena combat (src/arena/combat.js, bots.js, weapons.js). Health is ARENA.maxHp (20 =
+// 10 hearts). Damage is cut by armor (armorPerPoint per kit armor point, capped at
+// maxArmorCut); a melee hit scales with the attack charge (0.2 + 0.8 * charge^2) and a
+// fully charged hit while falling is a critical (critMul). Kill credit goes to the last
+// hitter within creditWindow s, also when the victim then falls into the void or lava.
+export const COMBAT = {
+  reach: 3.2, // m from the eyes
+  iframes: 0.45, // s a target cannot be hurt again after a hit
+  knockback: 6.2, // m/s pushed away per hit (times the weapon's kb)
+  knockUp: 5.4, // m/s lift
+  sprintKnock: 1.45, // sprint hits push harder
+  arrowKnock: 0.45,
+  critMul: 1.5,
+  armorPerPoint: 0.03,
+  maxArmorCut: 0.6,
+  creditWindow: 8,
+  assistWindow: 10,
+  combatTag: 8, // s after hitting or being hit: "in combat" (R cannot leave)
+  spawnProtect: 6, // s after landing; attacking ends it
+  // New players (below `level`): bots deal `botDmg` of their damage to you and at most `maxBots`
+  // bots (their zombies included) chase you at once.
+  rookie: { level: 5, botDmg: 0.65, maxBots: 1 },
+  touchAssistDeg: 12, // touch aim assist cone
+  weapons: {
+    sword: { name: 'Sword', dmg: 6, cooldown: 0.6, kb: 1 },
+    axe: { name: 'Axe', dmg: 8, cooldown: 0.95, kb: 1.1 },
+    stick: { name: 'Knockback Stick', dmg: 2, cooldown: 0.5, kb: 2.3 },
+    fist: { name: 'Fists', dmg: 2, cooldown: 0.3, kb: 0.7 },
+    bow: { name: 'Bow', dmg: 2, dmgMax: 9, draw: 1, speed: 14, speedMax: 46, gravity: -18, arrows: 32, cooldown: 0.3, kb: 1 },
+  },
+  rewards: {
+    killGold: 25,
+    killXp: 20,
+    assistGold: 10,
+    assistXp: 6,
+    streaks: { 3: 25, 5: 50, 10: 100, 15: 150, 20: 200 }, // extra Gold on reaching these streaks
+    shutdownAt: 5, // ending someone's streak this long pays shutdownGold
+    shutdownGold: 50,
+    repeatMul: 0.5, // killing the same player twice in a row pays this share of the Gold + XP
+    // Gold per hp of damage you deal (so a life without a kill still earns something), at most
+    // one full health bar per target every dmgGoldWindow s (no farming a regenerating friend)
+    dmgGold: 0.5,
+    dmgGoldWindow: 30,
+  },
+  bots: {
+    count: 7, // in the arena at once
+    countTouch: 5, // on phones / tablets
+    respawn: [4, 9], // s until a dead bot is replaced
+    maxKitLevel: 140, // bots pick kits up to this level (the cheaper ones more often)...
+    kitLevelAhead: 10, // ...and at most this far above the lowest level among the players in the arena
+    archerShare: 0.25,
+    sight: 24, // m
+    maxOnPlayer: 2, // at most this many bots (zombies included) chase one player at once
+    playerBias: 0.85, // < 1: they prefer you a little over each other
+    hitChance: 0.72,
+    cooldown: [0.7, 1.05], // s between swings (scaled by the weapon's cooldown)
+    aimError: 0.05, // rad, archers
+    walkSpeed: 4.6,
+    runSpeed: 7.2,
+    strafeSpeed: 3.2,
+    critJumps: 0.9, // per second chance to jump in for a crit when close
+    fleeChance: 0.5, // below 3 hearts they may run for a bit
+  },
+}
+
+// Kit powers (src/arena/abilities.js + effects.js), by kit id. Passives:
+//   speed (move multiplier), jumpMul, airJumps, glide, noFall, swimFast, kbResist (0..1 of
+//   knockback ignored), dmgTaken, dmg (dealt), regen (hp/s, always), shield (hold right click /
+//   the ability button to block hits from the front; tower = wider arc), lifesteal, punchHeal,
+//   backstab (x from behind), lowHpDmg (up to +x at 0 hp), fallDmg (+per m fallen), killHeal,
+//   killGold (extra Gold per kill), killStack (+dmg per kill this life, maxStacks), revive (hp,
+//   once per life), ghost { invis, cooldown }, bowSpeed, pierce (arrows through shields),
+//   cooldownMul (weapon swing time).
+// onHit (the kit weapon): ignite s, freeze s, slow s, mark s, breakShield s, lightning (every
+//   nth hit in a row on the same target), swap (cooldown s).
+// ability (F / right click with nothing to use / the touch ability button): type + numbers;
+//   `ammo` = uses per life (refilled on each drop) instead of a cooldown-only power.
+export const KIT_POWERS = {
+  swordsman: {},
+  archer: {},
+  bouncer: {},
+  glider: { glide: true, noFall: true },
+  spring: { jumpMul: 1.48, noFall: true },
+  tnt: { ability: { type: 'tnt', cooldown: 6, damage: 10, radius: 4.2, fuse: 1.6 } },
+  snowman: { ability: { type: 'snowball', ammo: 16, cooldown: 0.3, damage: 1, slow: 2.2 } },
+  grappler: { noFall: true, ability: { type: 'hook', cooldown: 4, range: 32 } },
+  tank: { shield: true, speed: 0.88, kbResist: 0.7 },
+  medic: { regen: 0.5, ability: { type: 'apple', ammo: 3, cooldown: 1 } },
+  pyro: { onHit: { ignite: 3 } },
+  warper: { ability: { type: 'orb', ammo: 3, cooldown: 1 } },
+  miner: { ability: { type: 'wall', cooldown: 10, life: 10 } },
+  frost: { onHit: { freeze: 0.6 } },
+  ninja: { speed: 1.15, airJumps: 1, noFall: true, ability: { type: 'star', ammo: 8, cooldown: 0.35, damage: 3 } },
+  viking: { onHit: { breakShield: 5 } },
+  alchemist: { ability: { type: 'potion', cooldown: 3, damage: 5, slow: 3, heal: 7, radius: 3 } },
+  ranger: { bowSpeed: 1.35, pierce: true },
+  druid: { ability: { type: 'vines', cooldown: 7, root: 2.2, damage: 2 } },
+  pirate: { killGold: 15 },
+  bomber: { ability: { type: 'firebomb', cooldown: 6, damage: 4, radius: 2.6, life: 4 } },
+  crusader: { shield: true, tower: true, kbResist: 0.4 },
+  poseidon: { swimFast: true, ability: { type: 'trident', cooldown: 4, damage: 8 } },
+  reaper: { killHeal: 6 },
+  vampire: { lifesteal: 0.3 },
+  stormcaller: { onHit: { lightning: 3 } },
+  engineer: { ability: { type: 'turret', cooldown: 25, life: 20, range: 18, every: 1.2, damage: 4 } },
+  necromancer: { ability: { type: 'zombies', cooldown: 30, count: 2, life: 25, hp: 10 } },
+  hunter: { onHit: { mark: 5 } },
+  samurai: { cooldownMul: 0.75, ability: { type: 'dash', cooldown: 5, damage: 6, speed: 20 } },
+  beekeeper: { ability: { type: 'bees', cooldown: 18, count: 4, life: 10, damage: 1 } },
+  ghost: { ghost: { invis: 4, cooldown: 12 } },
+  golem: { dmgTaken: 0.67, kbResist: 0.5, ability: { type: 'slam', cooldown: 9, radius: 5, damage: 4 } },
+  assassin: { backstab: 2 },
+  blaze: { ability: { type: 'fireball', cooldown: 2.5, damage: 6, burn: 4 } },
+  gladiator: { killStack: 0.1, maxStacks: 5 },
+  plague: { ability: { type: 'poison', cooldown: 12, radius: 3.2, life: 6, dps: 1.5 } },
+  warden: { ability: { type: 'boom', cooldown: 10, damage: 7, range: 16 } },
+  berserker: { lowHpDmg: 0.8 },
+  monk: { punchHeal: 1 },
+  chronomancer: { ability: { type: 'rewind', cooldown: 15, seconds: 3 } },
+  crusher: { fallDmg: 1.5 },
+  phoenix: { revive: 10 },
+  mystic: { onHit: { swap: 8 } },
+  champion: { dmg: 1.15 },
+}
+
+// Online play (src/net.js, remotePlayers.js, backend KitRoom.ts). On Bloxity the SDK resolves
+// the game server; in dev the client tries SERVER_URL (run the backend with `npm start`) and
+// plays offline (local bots only) when nothing answers.
+export const SERVER_URL = import.meta.env.DEV ? import.meta.env.VITE_SERVER_URL_DEV || 'ws://localhost:2567' : ''
+export const NET = {
+  room: 'kitpvp',
+  poseHz: 15, // own pose sent at most this often
+  botsHz: 10, // host: bot snapshots per second
+  interp: 0.12, // s of delay the others are drawn at (smooth between snapshots)
+  retry: 2, // s before the first reconnect; doubles after each failed try...
+  retryMax: 30, // ...up to this
+  rejoin: 1, // s before resolving again after the room closed
+  minBots: 2, // bots kept in the arena however many players are in it
+}
+
+// Duels (src/duel/): 1v1 on floating platforms far from the arena, first to `wins` rounds. The
+// server (KitRoom.ts) matches players, keeps the score and the ranked rating; practice against
+// a bot runs on this client only (the last platform). Rewards: [Gold, XP] per result; practice
+// pays XP only so it can't be farmed for Gold.
+export const DUEL = {
+  slots: 4, // online platforms (backend KIT.duel.slots)
+  practiceSlot: 4,
+  // platform centres: `cols` per row along x from x0 every dx, rows at z0 + n * dz. VoxelWorld
+  // keys only hold -256..255 per axis, so everything stays inside that (and past minX, which is
+  // how combat.js tells the duel platforms from the arena)
+  cols: 3,
+  x0: 150,
+  dx: 45,
+  z0: -60,
+  dz: 120,
+  minX: 120,
+  y: -40, // platform floor surface
+  radius: 10, // platform radius in blocks
+  spawnDx: 6.5, // spawns this far either side of the centre
+  killBelow: 22, // m under the floor = fell off (round lost)
+  wins: 3,
+  countdown: 3, // s frozen before each round (server: KIT.duel.countdownMs)
+  rewards: {
+    casual: { win: [100, 60], loss: [20, 15] },
+    ranked: { win: [150, 80], loss: [25, 20] },
+    practice: { win: [0, 25], loss: [0, 5] },
+  },
+}
+
+// --- Bloxity platform features (src/bloxity.js, src/boxity.js) --------------------------------
+// Leaderboards: declared once with Legion.SDK.leaderboard.define(); the SERVER submits the scores
+// from state it owns (backend src/boxity/boards.ts). The ids and settings here must match it.
+export const BOARDS = [
+  { id: 'kills', label: 'Player kills', order: 'desc', mode: 'sum', format: 'number', reset: 'weekly' },
+  { id: 'streak', label: 'Best killstreak', order: 'desc', mode: 'best', format: 'number', reset: 'weekly' },
+  { id: 'duels', label: 'Duels won', order: 'desc', mode: 'sum', format: 'number', reset: 'none' },
+  { id: 'rating', label: 'Duel rating', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
+]
+// Rewarded ad: watch one, get Gold (never a premium currency). The server verifies the reward token
+// and answers with the amount (backend KIT.adRewardGold); `gold` here is only the label until then.
+export const AD_REWARD = { placement: 'bonus-gold', gold: 150, cooldown: 60 }
+// Screen ads: the screens the game has (declared once). Gameplay banners stay off (no `show`).
+// Panels keep the right edge, the other edges hold the game's own windows.
+export const AD_SCREENS = {
+  panel: { slots: [{ position: 'middle-right', sizes: ['160x600', '300x250'] }] },
+  results: {},
+  gameplay: {},
+}
+
+// Shop items used in the arena (right click / tap the selected hotbar slot again).
+export const SHOP_USE = {
+  apple: { heal: 8, over: 4 }, // hp over s
+  potion: { speed: 1.3, time: 20 },
+  orb: {}, // thrown warp orb
+  steak: { food: 8 },
+  shield: { durability: 10 }, // blocks before it breaks (hold right click / hold the slot)
+  boost: { kills: 10 }, // double XP for this many kills
+}
+// Hunger (arena only): drains while you fight; below `low` there is no natural
+// regeneration and no sprinting. Steak refills it.
+export const HUNGER = { max: 20, drain: 1 / 25, sprintDrain: 1 / 9, low: 6 }
+// Fall damage (arena only): 1 hp per m fallen beyond `safe` (kits with noFall skip it).
+export const FALL = { safe: 3.5, perM: 1 }

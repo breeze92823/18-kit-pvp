@@ -1,0 +1,254 @@
+/* Combat overlay (combatHud.js). Sizes scale with the viewport; nothing here takes input. */
+.cb-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
+}
+
+/* charge / draw meter just under the crosshair */
+.cb-charge {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + clamp(15px, 2.4vmin, 22px));
+  width: clamp(26px, 4.2vmin, 38px);
+  height: clamp(4px, 0.6vmin, 6px);
+  transform: translateX(-50%);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cb-charge.on {
+  opacity: 1;
+}
+.cb-charge > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #fff;
+}
+.cb-charge.full > i {
+  background: #ffe04a;
+}
+
+/* hit marker: an X with a gap around the crosshair */
+.cb-hit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(24px, 3.8vmin, 34px);
+  height: clamp(24px, 3.8vmin, 34px);
+  transform: translate(-50%, -50%) rotate(45deg);
+  opacity: 0;
+}
+.cb-hit::before,
+.cb-hit::after {
+  content: '';
+  position: absolute;
+  background: linear-gradient(to right, var(--hc, #fff) 0 34%, transparent 34% 66%, var(--hc, #fff) 66%);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
+}
+.cb-hit::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+}
+.cb-hit::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: linear-gradient(to bottom, var(--hc, #fff) 0 34%, transparent 34% 66%, var(--hc, #fff) 66%);
+}
+.cb-hit.crit {
+  --hc: #ffd84a;
+}
+.cb-hit.on {
+  animation: cb-hit 0.3s ease-out;
+}
+@keyframes cb-hit {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(45deg) scale(1);
+  }
+}
+
+/* status pill (spawn protection / in combat): under the crosshair, clear of every
+   corner menu in all layouts */
+.cb-status {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + clamp(30px, 6vmin, 54px));
+  transform: translateX(-50%);
+  padding: 0.2em 0.8em;
+  border-radius: 999px;
+  font-size: clamp(11px, 1.4vmin + 5px, 15px);
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cb-status.on {
+  opacity: 1;
+}
+.cb-status.safe {
+  background: rgba(40, 120, 210, 0.72);
+}
+.cb-status.fight {
+  background: rgba(176, 32, 32, 0.72);
+}
+.cb-status.ice {
+  background: rgba(60, 150, 210, 0.78);
+}
+.cb-status.nature {
+  background: rgba(50, 130, 40, 0.78);
+}
+.cb-status.ghost {
+  background: rgba(120, 130, 150, 0.7);
+}
+.cb-hit.blocked {
+  --hc: #9aa4b0;
+}
+
+/* kit ability (desktop): bottom right, key badge, cooldown shade, ammo count.
+   On touch screens the ability is a button in the thumb cluster instead (touch.js). */
+.cb-ability {
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + clamp(14px, 2.4vw, 28px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(14px, 3vh, 28px));
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.cb-ability.on {
+  display: flex;
+}
+.touch .cb-ability {
+  display: none;
+}
+.cb-ability .ic {
+  position: relative;
+  width: clamp(52px, 6vmin, 68px);
+  height: clamp(52px, 6vmin, 68px);
+  border-radius: 12px;
+  border: 3px solid rgba(255, 255, 255, 0.55);
+  background: rgba(20, 24, 40, 0.6);
+  overflow: hidden;
+}
+.cb-ability.ready .ic {
+  border-color: #ffe04a;
+  box-shadow: 0 0 12px rgba(255, 224, 74, 0.55);
+}
+.cb-ability.active .ic {
+  border-color: #7fd8ff;
+  background: rgba(60, 140, 210, 0.6);
+}
+.cb-ability img {
+  position: absolute;
+  inset: 12%;
+  width: 76%;
+  height: 76%;
+  image-rendering: pixelated;
+}
+.cb-ability .cd {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+.cb-ability .cnt {
+  position: absolute;
+  right: 4px;
+  bottom: 1px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px #000, 0 0 2px #000;
+}
+.cb-ability kbd {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  font: 700 12px 'Fredoka', system-ui, sans-serif;
+  color: #ffe04a;
+  text-shadow: 0 1px 2px #000;
+}
+.cb-ability .nm {
+  max-width: 120px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* kill / assist banner */
+.cb-kill {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  text-align: center;
+  color: #fff;
+  opacity: 0;
+}
+.cb-kill .t {
+  font-size: clamp(22px, 4.6vmin, 42px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff5a4a;
+}
+.cb-kill.assist .t {
+  color: #7fd8ff;
+}
+.cb-kill .n {
+  font-size: clamp(14px, 2.6vmin, 22px);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cb-kill .g {
+  margin-top: 0.15em;
+  font-size: clamp(13px, 2.3vmin, 19px);
+  font-weight: 600;
+  color: #ffe04a;
+}
+.cb-kill.on {
+  animation: cb-kill 2.2s ease-out forwards;
+}
+@keyframes cb-kill {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.35);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+}
