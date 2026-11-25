@@ -597,7 +597,7 @@ export function createHud(ctx) {
       }))
       pBody.appendChild(wrap)
     },
-    // Duels (duel/duels.js via ctx.duels()): queue casual / ranked, practice vs a bot, your
+    // Duels (duel/duels.js via ctx.duels()): queue casual / ranked, your
     // rating and record, the top ranked players
     duels() {
       pTitle.textContent = 'Duels'
@@ -623,12 +623,8 @@ export function createHud(ctx) {
         const row = el('div', 'hud-duel-modes')
         row.appendChild(button(`hud-big-btn ${online ? '' : 'gray'}`, `Casual Duel<small>Win +${R.casual.win[0]} Gold +${R.casual.win[1]} XP</small>`, () => (online ? D.queue('casual') : (sfx.deny(), toast('Online duels need the game server', 'bad')))))
         row.appendChild(button(`hud-big-btn blue ${online ? '' : 'gray'}`, `Ranked Duel<small>Win +${R.ranked.win[0]} Gold, rating</small>`, () => (online ? D.queue('ranked') : (sfx.deny(), toast('Online duels need the game server', 'bad')))))
-        row.appendChild(button('hud-big-btn gray', `Practice vs Bot<small>XP only</small>`, () => {
-          closePanel()
-          D.practice()
-        }))
         wrap.appendChild(row)
-        if (!online) wrap.appendChild(el('p', '', 'Offline: only practice is available right now.'))
+        if (!online) wrap.appendChild(el('p', '', 'Offline: duels need the game server (there are no bots).'))
       }
       const top = ctx.boards?.()?.rating ?? []
       if (top.length) {

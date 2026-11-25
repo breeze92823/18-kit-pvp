@@ -281,7 +281,6 @@ export const LOBBY = {
   // the sunken funnel: an ellipse (blocks) measured from its centre; rim rings at q > 0.72, then
   // stone terraces [qMax, top block y] stepping down one block each, the open shaft below holeQ
   pit: { cx: -0.5, cz: -6.5, rx: 10.5, rz: 8.8, terraces: [[0.72, -3], [0.61, -4], [0.5, -5], [0.4, -6]], holeQ: 0.3 },
-  bots: 6, // wandering lobby players
   interactRange: 5.5, // m from the crosshair ray / E key
 }
 
@@ -484,9 +483,7 @@ export const COMBAT = {
     dmgGoldWindow: 30,
   },
   bots: {
-    count: 7, // in the arena at once
-    countTouch: 5, // on phones / tablets
-    respawn: [4, 9], // s until a dead bot is replaced
+    respawn: [4, 9], // (summons only) s until a replacement would drop in
     maxKitLevel: 140, // bots pick kits up to this level (the cheaper ones more often)...
     kitLevelAhead: 10, // ...and at most this far above the lowest level among the players in the arena
     archerShare: 0.25,
@@ -566,26 +563,23 @@ export const KIT_POWERS = {
 
 // Online play (src/net.js, remotePlayers.js, backend KitRoom.ts). On Bloxity the SDK resolves
 // the game server; in dev the client tries SERVER_URL (run the backend with `npm start`) and
-// plays offline (local bots only) when nothing answers.
+// plays offline (alone: there are no bots) when nothing answers.
 export const SERVER_URL = import.meta.env.DEV ? import.meta.env.VITE_SERVER_URL_DEV || 'ws://localhost:2567' : ''
 export const NET = {
   room: 'kitpvp',
   poseHz: 15, // own pose sent at most this often
-  botsHz: 10, // host: bot snapshots per second
+  botsHz: 10, // host: snapshots per second of the Necromancer's zombies
   interp: 0.12, // s of delay the others are drawn at (smooth between snapshots)
   retry: 2, // s before the first reconnect; doubles after each failed try...
   retryMax: 30, // ...up to this
   rejoin: 1, // s before resolving again after the room closed
-  minBots: 2, // bots kept in the arena however many players are in it
 }
 
 // Duels (src/duel/): 1v1 on floating platforms far from the arena, first to `wins` rounds. The
-// server (KitRoom.ts) matches players, keeps the score and the ranked rating; practice against
-// a bot runs on this client only (the last platform). Rewards: [Gold, XP] per result; practice
-// pays XP only so it can't be farmed for Gold.
+// server (KitRoom.ts) matches players, keeps the score and the ranked rating; there are no bots.
+// Rewards: [Gold, XP] per result.
 export const DUEL = {
-  slots: 4, // online platforms (backend KIT.duel.slots)
-  practiceSlot: 4,
+  slots: 4, // platforms (backend KIT.duel.slots)
   // platform centres: `cols` per row along x from x0 every dx, rows at z0 + n * dz. VoxelWorld
   // keys only hold -256..255 per axis, so everything stays inside that (and past minX, which is
   // how combat.js tells the duel platforms from the arena)
@@ -604,7 +598,6 @@ export const DUEL = {
   rewards: {
     casual: { win: [100, 60], loss: [20, 15] },
     ranked: { win: [150, 80], loss: [25, 20] },
-    practice: { win: [0, 25], loss: [0, 5] },
   },
 }
 

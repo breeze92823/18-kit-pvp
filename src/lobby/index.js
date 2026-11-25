@@ -10,7 +10,6 @@ import { buildCampfire, buildChest, buildLantern } from './models.js'
 import { buildCharacter, SKINS } from './characters.js'
 import { buildLeaderboards, buildWelcome, headerLabel } from './holograms.js'
 import { buildBeam, buildClouds, buildFloatingRocks, Particles, TEX } from './fx.js'
-import { createBots } from './bots.js'
 import { artCanvas } from './pixelart.js'
 import { solidBox } from '../propkit.js'
 
@@ -156,8 +155,6 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
   const rocks = buildFloatingRocks(A.floatingRocks)
   root.add(rocks.root)
 
-  // --- Bots ---
-  const bots = createBots(root, voxels, A, LOBBY.bots, onEvent)
 
   // --- Reward icon that floats out of an opened crate ---
   function rewardSprite(icon) {
@@ -360,7 +357,6 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
           }
         })
       }
-      bots.update(dt, playerPos)
       clouds.update(dt, playerPos)
       rocks.update(t, dt)
       sparkles.update(dt, camera, viewportH)

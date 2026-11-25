@@ -21,7 +21,7 @@ import { setNeonBloom } from './propkit.js'
 import { buildDefaultCharacter, loadBaseCharacter } from './avatar/character.js'
 import { applyProportions, attachEquippedAccessories } from './avatar/loader.js'
 import { disposeAnimator, makeAnimator } from './avatar/animator.js'
-import { EmotePlayer, emoteById, emoteKind, loadEmotes, remoteSeconds } from './avatar/emotes.js'
+import { EmotePlayer, emoteById, loadEmotes } from './avatar/emotes.js'
 import { createHud } from './hud/hud.js'
 import { createViewmodel } from './viewmodel.js'
 import { addXp, addGold, changed, dailyStatus, giveItem, state } from './state.js'
@@ -207,7 +207,7 @@ onNet('emote', (m) => {
   try {
     const show = () => {
       const e = emoteById(m?.id)
-      if (e) remote.emote(m.from, emoteKind(e), remoteSeconds(e))
+      if (e) remote.emote(m.from, m.id)
     }
     if (emoteById(m?.id)) show()
     else emotesReady.then(show)
@@ -703,7 +703,7 @@ function respawnKey() {
   if (zone === 'dead') return tryRespawn() // R = the Respawn button (once its countdown is over)
   if (zone === 'duel') {
     hud.toast('You left the duel', 'bad')
-    return duels.leave() // a forfeit (practice just ends)
+    return duels.leave() // a forfeit
   }
   if (zone === 'arena' && combat.inCombat()) {
     sfx.deny()

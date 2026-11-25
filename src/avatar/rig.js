@@ -90,6 +90,19 @@ export class PlayerRig {
     }
     this.q = new Quaternion()
     this.qa = new Quaternion()
+    this.byName = {}
+    for (const b of this.bindings) this.byName[BONE_NAMES[b.index / 3]] = b
+  }
+
+  // Poses one bone on top of whatever applyPose() wrote this frame (same character-space rotation
+  // * rest as applyPose): for action poses (swing, bow draw, block) layered over the locomotion.
+  poseBone(name, x, y = 0, z = 0) {
+    const b = this.byName[name]
+    if (!b) return
+    this.q.setFromAxisAngle(b.axisX, x)
+    if (Math.abs(y) >= EPSILON) this.q.premultiply(this.qa.setFromAxisAngle(b.axisY, y))
+    if (Math.abs(z) >= EPSILON) this.q.premultiply(this.qa.setFromAxisAngle(b.axisZ, z))
+    b.bone.quaternion.copy(this.q).multiply(b.rest)
   }
 
   applyPose(pose) {
