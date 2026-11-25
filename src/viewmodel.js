@@ -76,9 +76,20 @@ export function createViewmodel(camera) {
   let shieldIcon = 'shield'
   let block = 0
   let blocking = false
+  // Gold kit mastery: the held weapon glows softly in the kit's colour (null = off)
+  let glow = false
+  let glowT = 0
   return {
     holder,
     setItem,
+    setGlow(color) {
+      glow = !!color
+      if (color) itemMat.emissive.set(color)
+      else {
+        itemMat.emissive.setRGB(0, 0, 0)
+        itemMat.emissiveIntensity = 1
+      }
+    },
     swing() {
       if (swingT <= 0.35) swingT = 1
     },
@@ -95,6 +106,10 @@ export function createViewmodel(camera) {
     update(dt, { speed = 0, grounded = true, lookDx = 0, lookDy = 0, visible = true }) {
       holder.visible = visible
       if (!visible) return
+      if (glow) {
+        glowT += dt
+        itemMat.emissiveIntensity = 0.35 + Math.sin(glowT * 3) * 0.15
+      }
       walk += ((grounded ? Math.min(1, speed / 6) : 0) - walk) * Math.min(1, dt * 8)
       phase += dt * (4 + speed * 1.1)
       sway.x += (Math.max(-0.06, Math.min(0.06, -lookDx * 0.0009)) - sway.x) * Math.min(1, dt * 10)

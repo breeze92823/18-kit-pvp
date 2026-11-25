@@ -28,6 +28,18 @@ export const ABILITY_INFO = {
   slam: ['Ground Slam', 'shield_gold'],
   boom: ['Sonic Boom', 'orb_void'],
   rewind: ['Rewind', 'clock'],
+  volley: ['Arrow Volley', 'bow'],
+  gust: ['Wind Gust', 'feather'],
+  zap: ['Zap', 'wand_spark'],
+  leap: ['Super Leap', 'spring'],
+  rocket: ['Rocket Jump', 'rocket'],
+  blink: ['Blink', 'orb_blink'],
+  slimeball: ['Slime Ball', 'slime'],
+}
+// the HUD label + art of a kit's ability (a kit may rename a shared type: the Swordsman's Lunge is a dash)
+export const abilityInfo = (a) => {
+  const [name, icon] = ABILITY_INFO[a.type] ?? [a.type, 'sword']
+  return [a.name ?? name, a.icon ?? icon]
 }
 const POTIONS = ['harm', 'slow', 'heal']
 export const potionLabel = (i) => ['Potion of Harming', 'Potion of Slowness', 'Potion of Healing'][i % 3]
@@ -94,6 +106,24 @@ export function createAbilities(effects, api) {
           break
         case 'rewind':
           ok = effects.rewind(e, a)
+          break
+        case 'volley':
+          ok = effects.volley(e, aim.from, aim.dir, a)
+          break
+        case 'gust':
+          ok = effects.gust(e, aim.from, aim.dir, a)
+          break
+        case 'zap':
+          ok = effects.zap(e, aim.from, aim.dir, a)
+          break
+        case 'leap':
+          ok = effects.leap(e, aim.dir.x, aim.dir.z, a)
+          break
+        case 'rocket':
+          ok = effects.rocket(e, a)
+          break
+        case 'blink':
+          ok = effects.blink(e, aim.dir.x, aim.dir.z, a)
           break
         default:
           ok = false

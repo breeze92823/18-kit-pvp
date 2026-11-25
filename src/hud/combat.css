@@ -252,3 +252,110 @@
     transform: translateX(-50%) translateY(-12px);
   }
 }
+
+/* ultimate meter (Q): left of the ability widget; fills in the kit colour, pulses when ready */
+.cb-ult {
+  --ult: #ffe04a;
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + clamp(14px, 2.4vw, 28px) + clamp(52px, 6vmin, 68px) + 30px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(14px, 3vh, 28px));
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.cb-ult.on {
+  display: flex;
+}
+.touch .cb-ult {
+  display: none;
+}
+.cb-ult .ic {
+  position: relative;
+  width: clamp(52px, 6vmin, 68px);
+  height: clamp(52px, 6vmin, 68px);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.45);
+  background: rgba(20, 24, 40, 0.6);
+  overflow: hidden;
+}
+.cb-ult .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: var(--ult);
+  opacity: 0.55;
+  transition: height 0.15s linear;
+}
+.cb-ult img {
+  position: absolute;
+  inset: 16%;
+  width: 68%;
+  height: 68%;
+  image-rendering: pixelated;
+}
+.cb-ult kbd {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  transform: translateX(-50%);
+  font: 700 12px 'Fredoka', system-ui, sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+.cb-ult .nm {
+  max-width: 120px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+}
+.cb-ult.ready .ic {
+  border-color: var(--ult);
+  animation: cb-ult-pulse 0.9s ease-in-out infinite;
+}
+.cb-ult.ready .fill {
+  opacity: 0.85;
+}
+@keyframes cb-ult-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px var(--ult);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 22px var(--ult);
+    transform: scale(1.07);
+  }
+}
+
+/* critical hit: a quick golden flash around the screen edge */
+.cb-crit {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 230, 120, 0.42) 100%);
+}
+.cb-crit.on {
+  animation: cb-crit 0.28s ease-out;
+}
+@keyframes cb-crit {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb-ult.ready .ic {
+    animation: none;
+  }
+  .cb-crit.on {
+    animation-duration: 0.12s;
+  }
+}

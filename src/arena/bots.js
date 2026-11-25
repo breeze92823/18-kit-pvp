@@ -10,7 +10,7 @@
 import { CanvasTexture, Color, Group, Sprite, SpriteMaterial, SRGBColorSpace } from 'three'
 import { ARENA, COARSE_POINTER, COMBAT, FALL, KITS, PHYSICS } from '../config.js'
 import { RAPIER, segmentClear, world as physicsWorld } from '../physics.js'
-import { buildCharacter, randomSkin } from '../lobby/characters.js'
+import { buildCharacter, buildWolf, randomSkin } from '../lobby/characters.js'
 import { itemMesh } from '../lobby/models.js'
 import { fakeName } from '../lobby/holograms.js'
 import { mulberry32 } from '../textures.js'
@@ -28,6 +28,8 @@ const span = (info, cy) => (info.shape === 'slab' ? [cy, cy + 0.5] : info.shape 
 const FLASH = new Color(0.9, 0.05, 0.05)
 const FROZEN = new Color(0.25, 0.55, 0.8)
 const ZOMBIE_FISTS = { type: 'fist', item: null, name: 'Fists', dmg: 3, cooldown: 0.8, kb: 0.8 }
+// the Wolf Tamer's wolf: quick bites, a little weaker than a zombie's punch
+const WOLF_BITE = { type: 'fist', item: null, name: 'Bite', dmg: 2.5, cooldown: 0.6, kb: 0.6 }
 
 // a red "marked" arrow shown through walls over hunter-marked bots
 let markTex = null
@@ -158,18 +160,21 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
     const rand = mulberry32(seed * 7 + 3)
     const picked = minion ? null : pickKit(rand)
     const kit = minion ? null : (kitId && KITS.find((k) => k.id === kitId)) || picked
-    const weapon = minion ? ZOMBIE_FISTS : weaponFor(kit)
-    const name = minion ? 'Zombie' : fakeName(rand)
+    const wolf = minion?.kind === 'wolf'
+    const weapon = minion ? (wolf ? WOLF_BITE : ZOMBIE_FISTS) : weaponFor(kit)
+    const name = minion ? (wolf ? 'Wolf' : 'Zombie') : fakeName(rand)
     const maxHp = minion ? minion.hp ?? 10 : ARENA.maxHp
     const skin = randomSkin(seed)
     if (minion) Object.assign(skin, { skin: '#5f9a4e', hair: '#2f5a26', hairStyle: 'short', shirt: '#2f9aa0', shirt2: null, stripes: null, jacket: null, pants: '#3a3aa8', shoes: '#2a2a40', eyes: '#1a1a1a' })
-    const ch = buildCharacter({
-      skin,
-      armor: kit?.armorSet ?? null,
-      item: weapon.item,
-      tag: tagLines(name, maxHp, minion ? '#9aff7a' : '#ffffff'),
-      tagHeight: 0.46,
-    })
+    const ch = wolf
+      ? buildWolf({ tag: tagLines(name, maxHp, '#9aff7a'), tagHeight: 0.46 })
+      : buildCharacter({
+          skin,
+          armor: kit?.armorSet ?? null,
+          item: weapon.item,
+          tag: tagLines(name, maxHp, minion ? '#9aff7a' : '#ffffff'),
+          tagHeight: 0.46,
+        })
     const holder = new Group()
     holder.add(ch.root)
     group.add(holder)
@@ -193,6 +198,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
       armor: kit?.armor ?? 0,
       key: `bot:${seed}`,
       minion: !!minion,
+      wolf,
       owner: minion?.owner ?? null,
       ownerKey: minion ? minion.ownerKey ?? minion.owner?.key ?? '' : '',
       puppet: false, // drawn from the host's snapshots instead of simulated here
@@ -251,6 +257,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
     }
     b.mgr = self
     ctx.onSpawn(b) // kit powers, ammo, statuses
+    if (wolf) b.power = { speed: 1.3 } // wolves run down their prey
     // count swings so the other players see them (snapshots)
     const swing = ch.swing
     ch.swing = () => {
@@ -641,7 +648,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
       // shield on the left arm, raised in front of the chest when blocking
       if (b.blocking) parts.armL.rotation.set(-1.25, 0.55, 0)
     }
-    if (b.minion && !frozen) {
+    if (b.minion && !b.wolf && !frozen) {
       parts.armR.rotation.x = -1.5 + Math.sin(t * 3 + b.id) * 0.08 // zombie arms
       parts.armL.rotation.x = -1.5 + Math.cos(t * 3 + b.id) * 0.08
     }
@@ -690,7 +697,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
       if (ctx.on(b, 'mark')) f |= F.mark
       if (b.dropping) f |= F.dropping
       if (b.protectedUntil > t) f |= F.protect
-      return [b.id, b.kit?.id ?? '', b.minion ? b.ownerKey || '?' : '', r2(b.pos.x), r2(b.pos.y), r2(b.pos.z), r2(b.facing), r2(b.hp), b.maxHp, f, b.swings, r2(b.speed)]
+      return [b.id, b.wolf ? 'wolf' : b.kit?.id ?? '', b.minion ? b.ownerKey || '?' : '', r2(b.pos.x), r2(b.pos.y), r2(b.pos.z), r2(b.facing), r2(b.hp), b.maxHp, f, b.swings, r2(b.speed)]
     })
   }
   function applySnapshot(list, t) {
@@ -704,7 +711,8 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
       let b = bots.find((o) => o.id === id)
       if (!b) {
         // the host's kit (its pick depends on the players' levels there, not on the seed alone)
-        b = makeBot(t, 'puppet', ownerKey ? { ownerKey, owner: null, at: { x, y, z }, hp: maxHp, life: 999 } : null, id, null, typeof kitId === 'string' && kitId ? kitId : null)
+        const wolfPup = !!ownerKey && kitId === 'wolf'
+        b = makeBot(t, 'puppet', ownerKey ? { ownerKey, owner: null, at: { x, y, z }, hp: maxHp, life: 999, kind: wolfPup ? 'wolf' : 'zombie' } : null, id, null, typeof kitId === 'string' && kitId && !wolfPup ? kitId : null)
         b.pos.x = x
         b.pos.y = y
         b.pos.z = z
@@ -876,7 +884,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
         const z = owner.pos.z + Math.cos(ang) * 1.6
         const g = W.groundY(Math.floor(x), Math.floor(z), owner.pos.y + 1.5)
         const at = g !== null && Math.abs(g - owner.pos.y) < 3 && probe(x, g, z) !== BLOCKED ? { x, y: g, z } : { x: owner.pos.x, y: owner.pos.y, z: owner.pos.z }
-        const m = makeBot(t, 'minion', { owner, at, hp: a.hp, life: a.life })
+        const m = makeBot(t, 'minion', { owner, at, hp: a.hp, life: a.life, kind: a.kind === 'wolf' ? 'wolf' : 'zombie' })
         bots.push(m)
         ctx.fx.poof(at.x, at.y, at.z)
       }

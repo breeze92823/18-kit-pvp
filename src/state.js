@@ -3,7 +3,7 @@
 // save (sync.js sends every change; the server's `progress` replaces this state on joining). A
 // guest, or a session the server could not reach, keeps its progress in memory for the page only.
 // Change listeners drive the HUD.
-import { DAILY_REWARD, KITS, STARTER, xpForLevel } from './config.js'
+import { DAILY_REWARD, KITS, STARTER, kitOfTheDay, rentPrice, utcDay, xpForLevel } from './config.js'
 
 const DAY = 24 * 3600 * 1000
 
@@ -24,6 +24,10 @@ const fresh = () => ({
   daily: { last: 0, streak: 0 },
   seen: { shop: false },
   settings: { sfx: 0.8, ambience: 0.6, scoreboard: true },
+  mastery: {}, // kit id -> kills with it (config MASTERY)
+  // a kit you do not own, for your next arena life: { id, kind: 'trial' | 'rent', paid } (KIT_TRIAL)
+  borrow: null,
+  trialDay: 0, // the UTC day you last used the Kit of the Day trial
 })
 
 export const state = fresh()
@@ -36,7 +40,55 @@ function migrate(s) {
   for (const k of KITS) if (k.price === 0 && !s.kits.includes(k.id)) s.kits.push(k.id)
   s.kits = [...new Set(s.kits)]
   if (s.kit === 'knight' || !s.kits.includes(s.kit)) s.kit = 'swordsman'
+  if (!s.mastery || typeof s.mastery !== 'object') s.mastery = {}
+  if (s.borrow && (!ids.has(s.borrow.id) || s.kits.includes(s.borrow.id))) s.borrow = null
   return s
+}
+
+// --- the kit you fight with: a borrowed one (Kit of the Day / rental) beats your equipped kit ---
+export const activeKitId = () => state.borrow?.id ?? state.kit
+export const activeKit = () => KITS.find((k) => k.id === activeKitId()) ?? KITS[0]
+export const trialAvailable = (now = Date.now()) => state.trialDay !== utcDay(now)
+// Borrow `id` for your next arena life. kind 'trial' = today's free Kit of the Day, 'rent' = pay
+// rentPrice. Returns '' when done, else why not ('owned' | 'busy' | 'used' | 'gold').
+export function borrowKit(id, kind) {
+  const k = KITS.find((x) => x.id === id)
+  if (!k || state.kits.includes(id)) return 'owned'
+  if (state.borrow?.used) return 'busy'
+  returnBorrowed()
+  if (kind === 'trial') {
+    if (kitOfTheDay().id !== id || !trialAvailable()) return 'used'
+    state.trialDay = utcDay()
+    state.borrow = { id, kind, paid: 0 }
+  } else {
+    const price = rentPrice(k)
+    if (state.gold < price) return 'gold'
+    state.gold -= price
+    state.borrow = { id, kind: 'rent', paid: price }
+  }
+  changed()
+  return ''
+}
+// Give a borrowed kit back before using it (a rental is refunded, a trial comes back for today).
+export function returnBorrowed() {
+  const b = state.borrow
+  if (!b) return
+  if (b.used) return // already fighting with it: it lasts until that life ends
+  if (b.kind === 'rent') state.gold += b.paid ?? 0
+  else if (b.kind === 'trial' && state.trialDay === utcDay()) state.trialDay = 0
+  state.borrow = null
+  changed()
+}
+// The life with the borrowed kit is over (death in the arena, or back to the lobby after landing).
+export function endBorrow() {
+  if (!state.borrow) return null
+  const b = state.borrow
+  state.borrow = null
+  changed()
+  return b
+}
+export function addMastery(kitId) {
+  state.mastery[kitId] = (state.mastery[kitId] ?? 0) + 1
 }
 
 // --- server saves (sync.js) ----------------------------------------------------------------

@@ -360,6 +360,42 @@ export function killDing() {
   tone({ t: t + 0.08, type: 'sine', freq: 2636, dur: 0.25, gain: 0.02, wet: 0.35 })
 }
 // --- Kit abilities -------------------------------------------------------------------------------
+// slime ball / slime landing: a wet blob
+export function squelch(k = 1) {
+  if (!ready()) return
+  const t = now()
+  tone({ t, type: 'sine', freq: 260, to: 90, dur: 0.18, gain: 0.14 * k, wet: 0.15 })
+  burst({ t, type: 'lowpass', freq: 900, sweepTo: 200, dur: 0.16, gain: 0.18 * k, wet: 0.1 })
+}
+// firework shell: whistle up, crackle
+export function firework(k = 1) {
+  if (!ready()) return
+  const t = now()
+  tone({ t, type: 'sine', freq: 600, to: 2400, dur: 0.35, gain: 0.05 * k, wet: 0.4 })
+  burst({ t: t + 0.3, type: 'lowpass', freq: 2200, sweepTo: 300, dur: 0.5, gain: 0.3 * k, buf: brownBuf, wet: 0.5 })
+  for (let i = 0; i < 6; i++) burst({ t: t + 0.42 + i * 0.05 + rnd(0, 0.03), type: 'highpass', freq: 3000, dur: 0.04, gain: 0.1 * k, wet: 0.4 })
+}
+// zap / spark: a short electric crack
+export function zap(k = 1) {
+  if (!ready()) return
+  const t = now()
+  burst({ t, type: 'bandpass', freq: 4200, sweepTo: 1200, q: 1.4, dur: 0.18, gain: 0.25 * k, wet: 0.3 })
+  tone({ t, type: 'sawtooth', freq: 1800, to: 300, dur: 0.12, gain: 0.04 * k, wet: 0.3 })
+}
+// the ultimate meter filled
+export function ultReady() {
+  if (!ready()) return
+  const t = now()
+  for (const [i, f] of [523, 659, 784, 1046].entries()) tone({ t: t + i * 0.06, type: 'triangle', freq: f, dur: 0.22, gain: 0.06, wet: 0.45 })
+}
+// the ultimate fires: a rising roar
+export function ultimate(k = 1) {
+  if (!ready()) return
+  const t = now()
+  tone({ t, type: 'sawtooth', freq: 110, to: 440, dur: 0.5, gain: 0.08 * k, wet: 0.4 })
+  tone({ t, type: 'triangle', freq: 220, to: 880, dur: 0.6, gain: 0.07 * k, wet: 0.5 })
+  burst({ t, type: 'bandpass', freq: 600, sweepTo: 3200, q: 0.8, dur: 0.6, gain: 0.22 * k, wet: 0.4 })
+}
 export function explosion(k = 1) {
   if (!ready()) return
   const t = now()

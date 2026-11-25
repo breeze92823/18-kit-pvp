@@ -516,3 +516,195 @@ body.kits-open .touch-root {
 #hud.portrait .kits-wallet {
   top: calc(max(calc(env(safe-area-inset-top, 0px) + 8px), calc(var(--right-safe, 0px) + 8px)) + 54px);
 }
+
+/* --- Kit of the Day strip (above the list) ----------------------------------------- */
+.kits-today {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--k));
+  margin: 0 calc(22 * var(--k)) calc(8 * var(--k));
+  padding: calc(6 * var(--k)) calc(14 * var(--k));
+  min-height: 44px;
+  border-radius: calc(12 * var(--k));
+  border: max(2px, calc(3 * var(--k))) solid #3a3a3a;
+  background: linear-gradient(90deg, #4a3a8a, #7a3aa0);
+  box-shadow: inset 0 0 0 max(1px, calc(2 * var(--k))) rgba(255, 255, 255, 0.25), 0 calc(3 * var(--k)) 0 #2e2e2e;
+  font-family: var(--font);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.kits-today.free {
+  background: linear-gradient(90deg, #c87a10, #e0a010, #c87a10);
+  background-size: 200% 100%;
+  animation: kits-today-shine 2.4s linear infinite;
+}
+@keyframes kits-today-shine {
+  to {
+    background-position: -200% 0;
+  }
+}
+.kits-today img {
+  width: max(28px, calc(46 * var(--k)));
+  height: max(28px, calc(46 * var(--k)));
+  image-rendering: pixelated;
+  flex: none;
+}
+.kits-today .t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+.kits-today .h {
+  font-size: max(10px, calc(15 * var(--k)));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.kits-today b {
+  font-size: max(14px, calc(26 * var(--k)));
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.kits-today small {
+  font-size: max(10px, calc(15 * var(--k)));
+  font-weight: 500;
+}
+
+/* --- row badges: TODAY / BORROWED, mastery stars ------------------------------------ */
+.kit-row {
+  position: relative;
+}
+.kit-row .badge {
+  position: absolute;
+  top: calc(-10 * var(--k));
+  right: calc(12 * var(--k));
+  padding: 1px calc(8 * var(--k));
+  border-radius: calc(6 * var(--k));
+  font-size: max(9px, calc(14 * var(--k)));
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+.kit-row .badge.today {
+  background: #e0a010;
+}
+.kit-row .badge.borrow {
+  background: #7a3aa0;
+}
+.kit-row .mst {
+  margin-top: calc(2 * var(--k));
+  font-size: max(13px, calc(20 * var(--k)));
+  line-height: 1;
+  color: var(--mc);
+  text-shadow: 0 0 2px #000, 0 1px 0 #000;
+  letter-spacing: 0.08em;
+}
+
+/* --- info box: powers, mastery, the two buttons -------------------------------------- */
+.kits-info .powers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(16 * var(--k));
+  margin-top: calc(6 * var(--k));
+  font-size: max(11px, calc(18 * var(--k)));
+  font-weight: 600;
+  color: #222;
+}
+.kits-info .powers span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kits-info .powers kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #333;
+  color: #ffe04a;
+  font: 700 0.85em var(--font);
+  text-align: center;
+}
+.kits-info .powers .pas {
+  color: #5a5a5a;
+}
+.kits-info .mastery {
+  --mc: #e09a5a;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px calc(10 * var(--k));
+  width: 100%;
+  margin-top: calc(6 * var(--k));
+  font-size: max(10px, calc(15 * var(--k)));
+  font-weight: 600;
+  color: #333;
+}
+.kits-info .mastery b {
+  color: var(--mc);
+  text-shadow: 0 0 2px #000, 0 1px 0 #000;
+}
+.kits-info .mastery .bar {
+  position: relative;
+  width: min(40%, 180px);
+  height: max(8px, calc(12 * var(--k)));
+  border-radius: 99px;
+  background: #8a8a8a;
+  border: 1px solid #333;
+  overflow: hidden;
+}
+.kits-info .mastery .bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--mc);
+}
+.kits-info .mastery .num {
+  flex-basis: 100%;
+}
+.kits-btns {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(14 * var(--k));
+}
+.kits-btns .kits-btn {
+  margin-top: calc(8 * var(--k));
+}
+.kits-btn.on {
+  background: #a8e0a0;
+  color: #1a4a1a;
+}
+.kits-btn.rent {
+  background: #c8a0f0;
+  color: #2a0a4a;
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #ecdaff,
+    0 calc(4 * var(--k)) 0 #5a2a8a;
+}
+.kits-btn.free {
+  background: #e0a010;
+  text-shadow: 0 2px 0 #8a5a00;
+  box-shadow:
+    inset 0 0 0 max(1px, calc(2 * var(--k))) #ffe08a,
+    0 calc(4 * var(--k)) 0 #8a5a00;
+}
+#hud.compact .kits-today {
+  margin: 0 12px 6px;
+  min-height: 40px;
+}
+#hud.compact .kits-info .mastery .num,
+#hud.portrait .kits-info .mastery .num {
+  font-size: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kits-today.free {
+    animation: none;
+  }
+}
