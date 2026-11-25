@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kitpvp",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_DEV_MODE=true&& npx vite --port 5241 --strictPort --mode development"
+      ],
+      "port": 5241
+    },
+    {
+      "name": "dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5173",
+        "--strictPort",
+        "--mode",
+        "development"
+      ],
+      "port": 5173
+    }
+  ]
+}
