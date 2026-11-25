@@ -22,6 +22,7 @@ export function createArena(scene) {
   for (const r of A.endRods) A.lightExtra.push({ x: Math.floor(r.x), y: Math.floor(r.y), z: Math.floor(r.z), color: '#efe0ff', level: 11 })
   W.bakeLight(A.lightExtra)
   const mesh = W.buildMesh()
+  mesh.userData.staticShadow = true // never moves: its sun shadow is cached (shadowCache.js)
   const root = new Group()
   root.name = 'arena'
   root.add(mesh)

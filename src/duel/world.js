@@ -54,6 +54,7 @@ export function createDuelWorld(scene) {
     }
   }
   const mesh = W.buildMesh()
+  mesh.userData.staticShadow = true // never moves: its sun shadow is cached (shadowCache.js)
   const root = new Group()
   root.name = 'duel-platforms'
   root.add(mesh)

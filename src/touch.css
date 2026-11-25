@@ -1,4 +1,10 @@
-/* Touch controls (touch.js). Hidden unless body.touch-ui. */
+/* Touch controls (touch.js). Hidden unless body.touch-ui.
+   Block-game style: translucent grey squares with a light rim, movement bottom-left,
+   actions in a 2x2 arc bottom-right, utilities in a small row/column at the top.
+   The HUD (hud.js) publishes on :root:
+     --hud-ctl-b      how far up the controls sit (portrait: above the hotbar)
+     --hud-right-safe bottom of a reserved strip at the right edge (Boxity toolbar)
+     --hud-top-safe   bottom of the reserved strip at the top-left (Boxity toolbar + chat) */
 .touch-root {
   display: none;
   position: fixed;
@@ -6,14 +12,20 @@
   z-index: 10;
   pointer-events: none;
   font-family: 'Fredoka', system-ui, sans-serif;
-  --pad: clamp(12px, 3vmin, 24px);
+  --pad: clamp(10px, 2.6vmin, 22px);
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --ctl-b: max(calc(var(--hud-ctl-b, 0px) + 8px), calc(var(--safe-b) + var(--pad)));
+  --tb: 44px; /* top utility buttons */
+  --tgap: 6px;
 }
 .touch-ui .touch-root {
   display: block;
+}
+.kits-open .touch-root {
+  display: none;
 }
 .touch-root * {
   touch-action: none;
@@ -32,27 +44,32 @@
 }
 .touch-left {
   left: 0;
-  width: 45%;
+  width: 42%;
 }
 .touch-right {
   right: 0;
-  width: 55%;
+  width: 58%;
+}
+/* D-pad mode: the whole screen looks, the pad moves */
+.touch-root.dpad .touch-right {
+  width: 100%;
 }
 
 /* --- Floating joystick -------------------------------------------------------- */
 .joy-base {
-  --size: clamp(104px, 28vmin, 150px);
+  --size: clamp(100px, 27vmin, 144px);
   position: absolute;
   /* Resting spot (a hint); while held it is moved under the thumb. */
-  left: calc(var(--safe-l) + var(--pad) + var(--size) / 2 + 8px);
-  top: calc(100% - var(--safe-b) - var(--pad) - var(--size) / 2 - 8px);
+  left: calc(var(--safe-l) + var(--pad) + var(--size) / 2 + 6px);
+  top: calc(100% - var(--ctl-b) - var(--size) / 2 - 6px);
   width: var(--size);
   height: var(--size);
   margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  opacity: 0.55;
+  background: rgba(20, 20, 20, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.12);
+  opacity: 0.6;
   transition: opacity 0.15s;
 }
 .joy-base.active {
@@ -62,71 +79,157 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 44%;
-  height: 44%;
-  margin: -22% 0 0 -22%;
+  width: 42%;
+  height: 42%;
+  margin: -21% 0 0 -21%;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: rgba(235, 235, 235, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* --- D-pad -------------------------------------------------------------------- */
+.touch-dpad {
+  --cell: clamp(42px, 11.5vmin, 58px);
+  display: none;
+  position: absolute;
+  left: calc(var(--safe-l) + var(--pad));
+  bottom: var(--ctl-b);
+  width: calc(var(--cell) * 3);
+  height: calc(var(--cell) * 3);
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  pointer-events: auto;
+}
+.touch-root.dpad .touch-dpad {
+  display: grid;
+}
+.dpad-cell {
+  margin: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(20, 20, 20, 0.32);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+.dpad-cell.mid {
+  visibility: hidden;
+}
+.dpad-cell.diag {
+  visibility: hidden;
+  opacity: 0.85;
+}
+.touch-dpad.fwd .dpad-cell.diag {
+  visibility: visible;
+}
+.dpad-cell.on {
+  background: rgba(255, 255, 255, 0.42);
+  border-color: #fff;
+}
+.dpad-cell svg {
+  width: 52%;
+  height: 52%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
+}
+.dpad-cell.down svg {
+  transform: rotate(180deg);
+}
+.dpad-cell.left svg {
+  transform: rotate(-90deg);
+}
+.dpad-cell.right svg {
+  transform: rotate(90deg);
+}
+.dpad-cell.ul svg {
+  transform: rotate(-45deg);
+}
+.dpad-cell.ur svg {
+  transform: rotate(45deg);
 }
 
 /* --- Buttons -------------------------------------------------------------------- */
 .touch-btn {
   pointer-events: auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   padding: 0;
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  border-radius: 50%;
-  background: rgba(11, 42, 85, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
+  background: rgba(20, 20, 20, 0.32);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.25);
   color: #fff;
   font-family: inherit;
   font-weight: 600;
-  font-size: clamp(12px, 3.2vmin, 16px);
+  font-size: clamp(10px, 2.6vmin, 13px);
   line-height: 1;
   letter-spacing: 0.04em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
 }
 .touch-btn:active,
 .touch-btn.on {
-  background: rgba(255, 196, 64, 0.75);
+  background: rgba(255, 255, 255, 0.4);
   border-color: #fff;
+  box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 .touch-btn svg {
-  width: 55%;
-  height: 55%;
+  width: 52%;
+  height: 52%;
   fill: none;
   stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
+}
+
+/* Utilities: a row at the top-right (landscape), a column on the right (portrait). */
+.touch-top {
+  position: absolute;
+  top: calc(max(var(--safe-t), var(--hud-right-safe, 0px)) + var(--pad));
+  right: calc(var(--safe-r) + var(--pad));
+  display: flex;
+  gap: var(--tgap);
+}
+.touch-btn.small {
+  width: var(--tb);
+  height: var(--tb);
+}
+.touch-btn.small svg {
+  width: 58%;
+  height: 58%;
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-
-.touch-top {
-  position: absolute;
-  top: calc(var(--safe-t) + var(--pad));
-  right: calc(var(--safe-r) + var(--pad));
-  display: flex;
-  gap: 10px;
-}
-.touch-btn.small {
-  width: 44px;
-  height: 44px;
+/* portrait (the HUD's .portrait: height > 1.15 x width): a column under the HUD's menu button */
+@media (max-aspect-ratio: 20/23) {
+  .touch-top {
+    flex-direction: column;
+    top: calc(max(var(--safe-t), var(--hud-right-safe, 0px)) + var(--pad) + var(--tb) + var(--tgap));
+  }
 }
 
-/* Thumb arc in the bottom-right corner: jump in the corner, attack beside it (both
-   big), sprint above attack and the camera button above jump. */
+/* Thumb arc in the bottom-right corner: jump in the corner (biggest), attack to its
+   left, sprint above jump, the kit ability above attack. */
 .touch-cluster {
-  --jump: clamp(70px, 19vmin, 96px);
-  --side: clamp(50px, 13vmin, 66px);
+  --jump: clamp(64px, 17.5vmin, 90px);
+  --side: clamp(48px, 12.5vmin, 64px);
   --gap: clamp(8px, 2vmin, 14px);
-  --lift: calc(var(--side) * 0.45);
+  --lift: calc(var(--jump) * 0.28);
   position: absolute;
   right: calc(var(--safe-r) + var(--pad));
-  bottom: calc(var(--safe-b) + var(--pad));
+  bottom: var(--ctl-b);
   width: calc(var(--jump) * 2 + var(--gap));
   height: calc(var(--lift) + var(--jump) + var(--gap) + var(--side));
   pointer-events: none;
@@ -139,32 +242,53 @@
   bottom: 0;
   width: var(--jump);
   height: var(--jump);
-  font-size: clamp(14px, 3.8vmin, 18px);
+}
+.touch-btn.jump svg {
+  width: 46%;
+  height: 46%;
+  stroke-width: 3;
 }
 .touch-btn.attack {
   right: calc(var(--jump) + var(--gap));
   bottom: var(--lift);
   width: var(--jump);
   height: var(--jump);
-  background: rgba(150, 30, 30, 0.5);
+  background: rgba(120, 24, 24, 0.38);
+  border-color: rgba(255, 170, 160, 0.65);
 }
 .touch-btn.attack svg {
-  width: 50%;
-  height: 50%;
-  stroke-width: 2.4;
+  width: 48%;
+  height: 48%;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .touch-btn.attack.on {
-  background: rgba(230, 70, 50, 0.8);
+  background: rgba(230, 70, 50, 0.7);
 }
-/* kit ability: left of RUN (clear of the hotbar in landscape and the joystick in portrait) */
+.touch-btn.sprint {
+  right: calc((var(--jump) - var(--side)) / 2);
+  bottom: calc(var(--jump) + var(--gap));
+  width: var(--side);
+  height: var(--side);
+}
+.touch-btn.sprint svg {
+  width: 44%;
+  height: 44%;
+  stroke-width: 2.8;
+}
+.touch-btn.sprint.on {
+  background: rgba(110, 200, 255, 0.55);
+}
+/* kit ability: above the attack button */
 .touch-btn.ability {
   display: none;
-  right: calc(var(--jump) + var(--gap) + (var(--jump) - var(--side)) / 2 + var(--side) + var(--gap));
+  right: calc(var(--jump) + var(--gap) + (var(--jump) - var(--side)) / 2);
   bottom: calc(var(--lift) + var(--jump) + var(--gap));
   width: var(--side);
   height: var(--side);
   overflow: hidden;
-  background: rgba(30, 40, 70, 0.55);
+  background: rgba(30, 40, 70, 0.45);
 }
 .touch-btn.ability.shown {
   display: flex;
@@ -177,8 +301,8 @@
   background: rgba(60, 140, 210, 0.7);
 }
 .touch-btn.ability img {
-  width: 58%;
-  height: 58%;
+  width: 62%;
+  height: 62%;
   image-rendering: pixelated;
   pointer-events: none;
 }
@@ -193,21 +317,9 @@
 }
 .touch-btn.ability .cnt {
   position: absolute;
-  right: 22%;
-  bottom: 14%;
+  right: 12%;
+  bottom: 8%;
   font-size: 13px;
   font-weight: 700;
   pointer-events: none;
-}
-.touch-btn.sprint {
-  right: calc(var(--jump) + var(--gap) + (var(--jump) - var(--side)) / 2);
-  bottom: calc(var(--lift) + var(--jump) + var(--gap));
-  width: var(--side);
-  height: var(--side);
-}
-.touch-btn.mode {
-  right: calc((var(--jump) - var(--side)) / 2);
-  bottom: calc(var(--jump) + var(--gap));
-  width: var(--side);
-  height: var(--side);
 }

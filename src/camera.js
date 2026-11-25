@@ -20,6 +20,16 @@ export function setCameraSensitivity(value) {
 }
 export const getCameraSensitivity = () => sensitivity
 
+// The FOV is vertical, so a tall portrait screen would see a narrow tunnel. Below a 4:3
+// width-to-height ratio the vertical FOV grows (half way toward keeping the horizontal
+// FOV a 4:3 screen has), so phones held upright still see around them without fisheye.
+const PORTRAIT_FROM = 0.75
+function portraitFov(fov, aspect) {
+  if (!(aspect > 0) || aspect >= PORTRAIT_FROM) return fov
+  const t = Math.tan((fov * Math.PI) / 360) * Math.sqrt(PORTRAIT_FROM / aspect)
+  return (Math.atan(t) * 360) / Math.PI
+}
+
 const followed = { x: 0, y: 0, z: 0 } // smoothed feet position
 const lastPlayerPos = { x: 0, y: 0, z: 0 }
 const look = { x: 0, y: 0, z: 0 }
@@ -108,7 +118,7 @@ export function update(camera, dt) {
   const speed = Math.hypot(player.velocity.x, player.velocity.z)
   const targetRush = clamp((speed - PHYSICS.walkSpeed) / (PHYSICS.sprintSpeed - PHYSICS.walkSpeed), 0, 1)
   rush += (targetRush - rush) * (1 - Math.exp(-CAMERA.speedEase * dt))
-  const fov = CAMERA.fov + CAMERA.speedFov * rush
+  const fov = portraitFov(CAMERA.fov + CAMERA.speedFov * rush, camera.aspect)
   if (Math.abs(camera.fov - fov) > 0.01) {
     camera.fov = fov
     camera.updateProjectionMatrix()
