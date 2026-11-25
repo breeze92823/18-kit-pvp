@@ -1,7 +1,7 @@
 # Kit PvP
 
 ## Origin
-This repo started as the empty Bowling Roll / boat-race base (player, physics, camera, avatar, sky, Bloxity SDK wrapper) and is now **Kit PvP**. Its git remote still points at the old boat-race repo: do not push there; create a new public repo when publishing (root CLAUDE.md). The Colyseus backend in `../Bowling-roll-backend` is not used yet.
+This repo started as the empty Bowling Roll / boat-race base (player, physics, camera, avatar, sky, Bloxity SDK wrapper) and is now **Kit PvP**. Its git remote is `breeze92823/18-kit-pvp` (public). The Colyseus backend in `../Bowling-roll-backend` is not used yet.
 
 ## Current state: lobby only
 The voxel sky-island lobby is built. **The arena is not**: dropping through the hole in the pit fades to "Arena coming soon" and returns you to spawn (`enterArena()` in `main.js`). That function is the hook for the arena: load/teleport into it there. `ARENA.enterY` (config) is the depth that triggers it; the shaft is open to the sky below the island, so an arena placed under the island will be visible through the hole.
