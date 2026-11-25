@@ -23,10 +23,24 @@ let orbiting = false // right-drag fallback where pointer lock is refused
 let canvas = null
 const touch = { x: 0, z: 0, sprint: false, jumpHeld: false }
 
+// While frozen (the death screen) the camera does not turn or zoom, the cursor is released so the
+// Respawn button can be clicked, and clicking the world does not grab it again.
+let frozen = false
+export const isLookFrozen = () => frozen
+export function setLookFrozen(on) {
+  frozen = !!on
+  if (!frozen) return
+  orbiting = false
+  inputState.look.dx = 0
+  inputState.look.dy = 0
+  inputState.zoom = 0
+  if (document.pointerLockElement) document.exitPointerLock?.()
+}
+
 export const isLocked = () => !!canvas && document.pointerLockElement === canvas
 // Pointer lock can reject (sandboxed frame, post-Escape cooldown); that is not a fault.
 export function requestLock() {
-  if (!canvas || isLocked()) return
+  if (!canvas || isLocked() || frozen) return
   const r = canvas.requestPointerLock?.()
   if (r instanceof Promise) r.catch(() => {})
 }
@@ -89,6 +103,7 @@ export function install(showMenu, canvasEl) {
     recomputeMove()
   })
   window.addEventListener('pointerdown', (e) => {
+    if (frozen) return
     const onWorld = e.target === canvas
     if (e.button === 2 && !isLocked()) orbiting = true
     if (e.button === 0 && onWorld && e.pointerType === 'mouse') {
@@ -103,7 +118,7 @@ export function install(showMenu, canvasEl) {
     if (e.button === 0 || e.button === 2) orbiting = false
   })
   window.addEventListener('pointermove', (e) => {
-    if (!orbiting && !isLocked()) return
+    if (frozen || (!orbiting && !isLocked())) return
     inputState.look.dx += e.movementX || 0
     inputState.look.dy += e.movementY || 0
   })
@@ -113,6 +128,7 @@ export function install(showMenu, canvasEl) {
     (e) => {
       if (e.target !== canvas) return
       e.preventDefault()
+      if (frozen) return
       inputState.zoom += e.deltaY * (NOTCH_PER_DELTA[e.deltaMode] ?? NOTCH_PER_DELTA[0])
     },
     { passive: false },

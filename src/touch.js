@@ -6,7 +6,7 @@
 //   buttons     - jump, sprint (toggle), camera mode, plus day-night/respawn
 import './touch.css'
 import { COARSE_POINTER, TOUCH } from './config.js'
-import { inputState, requestLock, setTouchJumpHeld, setTouchMove, setTouchSprint } from './input.js'
+import { inputState, isLookFrozen, requestLock, setTouchJumpHeld, setTouchMove, setTouchSprint } from './input.js'
 
 const ICONS = {
   day: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
@@ -129,6 +129,7 @@ function installLook(zone) {
     const dy = e.clientY - f.y
     f.x = e.clientX
     f.y = e.clientY
+    if (isLookFrozen()) return // dead: the camera stays put
     if (fingers.size === 1) {
       inputState.look.dx += dx * TOUCH.lookScale
       inputState.look.dy += dy * TOUCH.lookScale
@@ -170,8 +171,10 @@ function attackButton(actions) {
   })
   b.addEventListener('pointermove', (e) => {
     if (e.pointerId !== id) return
-    inputState.look.dx += (e.clientX - x) * TOUCH.lookScale
-    inputState.look.dy += (e.clientY - y) * TOUCH.lookScale
+    if (!isLookFrozen()) {
+      inputState.look.dx += (e.clientX - x) * TOUCH.lookScale
+      inputState.look.dy += (e.clientY - y) * TOUCH.lookScale
+    }
     x = e.clientX
     y = e.clientY
   })

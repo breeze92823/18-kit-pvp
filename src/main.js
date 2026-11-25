@@ -1,7 +1,7 @@
 import { ACESFilmicToneMapping, Clock, Group, PCFSoftShadowMap, PerspectiveCamera, Ray, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer } from 'three'
 import { AD_REWARD, ARENA, BIOMES, CAMERA, COARSE_POINTER, DUEL, graphicsPreset, KITS, LOBBY, PHYSICS, RENDER, SPAWN, SPAWN_FACING, lobbySpawn } from './config.js'
 import * as bloxity from './bloxity.js'
-import { inputState, install as installInput, isLocked, onKey } from './input.js'
+import { inputState, install as installInput, isLocked, onKey, setLookFrozen } from './input.js'
 import { installTouch } from './touch.js'
 import { createPlayerBody, interpolate as interpolatePlayer, knockback, player, playerEnv, resetPlayer, respawn, setSpawnPicker } from './player.js'
 import { getPitch, getYaw, setCameraSensitivity, syncYawToPlayer, update as updateCamera } from './camera.js'
@@ -286,12 +286,20 @@ const ads = {
 }
 // Screen ads: tell Boxity which of the game's screens is showing so banners go around it.
 let adScreenKey = ''
+const AD_POSITIONS = ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
 let resultsUntil = 0
 function updateAdScreen(t) {
   if (zone === 'dead') return // the death screen draws its own banners; they return after the respawn
-  const key = t < resultsUntil ? 'results' : hud.isOpen() ? 'panel' : 'gameplay'
+  const key = hud.kitsOpen() ? 'kits' : t < resultsUntil ? 'results' : hud.isOpen() ? 'panel' : 'gameplay'
   if (key === adScreenKey) return
   adScreenKey = key
+  if (key === 'kits') {
+    // The Kits screen fills the whole window (list, Exit, info box + Equip/Buy, all moving with the
+    // layout), so no banner may sit on it: skip every position and hide what Boxity may still show.
+    bloxity.adScreen(key, { skip: AD_POSITIONS })
+    bloxity.hideAdScreen()
+    return
+  }
   // the windows keep their Exit button top right and the Kits list left
   bloxity.adScreen(key, key === 'panel' ? { skip: ['top-right', 'middle-left', 'top-left'] } : undefined)
 }
@@ -501,6 +509,7 @@ onModeChanged((mode) => {
 onKey('KeyV', toggleMode)
 onKey('KeyN', () => lighting.toggleDayNight())
 onKey('KeyR', () => respawnKey())
+onKey('KeyG', () => zone === 'dead' && tryRespawn()) // G = the death screen's Respawn button
 touchControls = installTouch({
   mode: toggleMode,
   day: () => lighting.toggleDayNight(),
@@ -644,6 +653,8 @@ function die(cause) {
   hud.fade(true, big, small, 'death')
   if (!fought) hud.feed(`<span style="color:#ff5a5a">${big}</span>`)
   stopEmote()
+  combat.release() // let go of a drawn bow / held attack
+  setLookFrozen(true) // dead: no camera control, and the cursor is free to click Respawn
   beginDeathScreen()
 }
 
@@ -661,7 +672,8 @@ function beginDeathScreen() {
   const render = () => {
     if (death !== d) return
     const waited = performance.now() - deathShownAt >= 1200 // let the death read first
-    hud.setRespawn({ label: left === null ? '…' : left > 0 ? String(left) : 'RESPAWN', enabled: left === 0 && waited, onClick: tryRespawn })
+    const keyHint = document.body.classList.contains('touch-ui') ? '' : ' (G)'
+    hud.setRespawn({ label: left === null ? '…' : left > 0 ? String(left) : 'RESPAWN' + keyHint, enabled: left === 0 && waited, onClick: tryRespawn })
   }
   d.onCountdown((n) => {
     left = Math.max(0, Math.ceil(Number(n) || 0))
@@ -683,6 +695,7 @@ function finishDeath() {
 // Back to the lobby spawn (after a death, or R in the arena).
 function goLobby() {
   death = null
+  setLookFrozen(false)
   bloxity.hideDeathScreen()
   const spawnAt = pickLobbySpawn()
   resetPlayer(spawnAt, SPAWN_FACING)
