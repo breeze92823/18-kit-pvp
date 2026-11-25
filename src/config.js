@@ -27,6 +27,20 @@ export const BEACH = {
 export const WATER = { level: -0.6, size: 1400, color: '#12a9e6', shallow: '#7ff0ff' }
 export const SPAWN = { x: 0.5, y: 0.05, z: 13.5 }
 export const SPAWN_FACING = Math.PI // yaw the character faces on spawn (PI = toward -Z)
+export const SPAWN_SPREAD = 4.5 // m: lobby spawns land randomly within this radius of SPAWN so players never stack
+
+// A random lobby spawn point near SPAWN. `isClear(x, z)` (lobby.spawnClear) rejects blocked
+// spots; after a few tries it falls back to the exact SPAWN so it can never fail.
+export function lobbySpawn(isClear) {
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2
+    const r = SPAWN_SPREAD * Math.sqrt(Math.random())
+    const x = SPAWN.x + Math.cos(a) * r
+    const z = SPAWN.z + Math.sin(a) * r
+    if (!isClear || isClear(x, z)) return { x, y: SPAWN.y, z }
+  }
+  return { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z }
+}
 
 // --- Player modes (modes.js) -------------------------------------------------
 // 'character' = third-person chase cam with the avatar on screen.

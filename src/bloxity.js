@@ -453,7 +453,7 @@ export function getToken() {
 }
 
 // The ?roomId= the page was opened with: the game page's Open Rooms Join button (a bare Colyseus
-// room id) or a friend invite (what updateRoom() reported: "<relayRoomId>~<colyseusRoomId>").
+// room id) or a friend invite (what updateRoom() reported: the bare room id, or an older "<relayRoomId>~<colyseusRoomId>").
 export function launchRoomId() {
   try {
     return new URLSearchParams(location.search).get('roomId') || ''

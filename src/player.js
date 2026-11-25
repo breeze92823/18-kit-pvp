@@ -38,6 +38,10 @@ export const playerEnv = {
 }
 let airJumpsLeft = 0
 
+// The controller moves through other players (remote capsules are group 0x0002, see
+// remotePlayers.js) but still collides with the world and crates: members 0x0001, filter all but 0x0002.
+const PLAYER_QUERY_GROUPS = 0x0001fffd
+
 const HALF = PLAYER_DIMS.height / 2 // capsule centre above the feet
 const prev = { x: 0, y: 0, z: 0 }
 let body = null
@@ -85,8 +89,14 @@ export function knockback(vx, vy, vz) {
   kick.on = true
 }
 
+// main.js sets this so falling off the island respawns at a random clear lobby spot too.
+let spawnPicker = null
+export function setSpawnPicker(fn) {
+  spawnPicker = fn
+}
+
 export function respawn() {
-  resetPlayer()
+  resetPlayer(spawnPicker ? spawnPicker() : SPAWN)
   syncYawToPlayer()
 }
 
@@ -189,7 +199,7 @@ function step(dt) {
   const desired = { x: player.velocity.x * dt, y: player.velocity.y * dt, z: player.velocity.z * dt }
   const at = body.translation()
   setStaticFocus(at.x, at.y, at.z) // simulate the static colliders around us (physics.js)
-  controller.computeColliderMovement(collider, desired, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS)
+  controller.computeColliderMovement(collider, desired, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, PLAYER_QUERY_GROUPS)
   const moved = controller.computedMovement()
   player.grounded = !jumped && controller.computedGrounded()
 

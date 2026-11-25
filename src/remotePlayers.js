@@ -199,7 +199,9 @@ export function createRemotePlayers(scene, { fire } = {}) {
     const holder = new Group()
     group.add(holder)
     const body = physicsWorld.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(p.x, p.y + 0.9, p.z))
-    physicsWorld.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.32), body)
+    // Group 0x0002: the local player's controller ignores it (player.js PLAYER_QUERY_GROUPS),
+    // so overlapping or stacked players can never trap each other. Ray casts still hit it.
+    physicsWorld.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.32).setCollisionGroups(0x0002ffff), body)
     const r = {
       isRemote: true,
       sessionId: id,
