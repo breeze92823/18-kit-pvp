@@ -634,6 +634,7 @@ export const AD_REWARD = { placement: 'bonus-gold', gold: 150, cooldown: 60 }
 // Panels keep the right edge, the other edges hold the game's own windows.
 export const AD_SCREENS = {
   panel: { slots: [{ position: 'middle-right', sizes: ['160x600', '300x250'] }] },
+  kits: {}, // the full-screen Kits window: no banners at all (they would cover its buttons)
   results: {},
   gameplay: {},
 }
