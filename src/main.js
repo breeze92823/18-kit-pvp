@@ -1,9 +1,9 @@
 import { ACESFilmicToneMapping, Clock, Group, PCFSoftShadowMap, PerspectiveCamera, Ray, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer } from 'three'
-import { AD_REWARD, ARENA, BIOMES, CAMERA, COARSE_POINTER, DUEL, graphicsPreset, KITS, LOBBY, PHYSICS, RENDER, SPAWN, SPAWN_FACING } from './config.js'
+import { AD_REWARD, ARENA, BIOMES, CAMERA, COARSE_POINTER, DUEL, graphicsPreset, KITS, LOBBY, PHYSICS, RENDER, SPAWN, SPAWN_FACING, lobbySpawn } from './config.js'
 import * as bloxity from './bloxity.js'
 import { inputState, install as installInput, isLocked, onKey } from './input.js'
 import { installTouch } from './touch.js'
-import { createPlayerBody, interpolate as interpolatePlayer, knockback, player, playerEnv, resetPlayer, respawn } from './player.js'
+import { createPlayerBody, interpolate as interpolatePlayer, knockback, player, playerEnv, resetPlayer, respawn, setSpawnPicker } from './player.js'
 import { getPitch, getYaw, setCameraSensitivity, syncYawToPlayer, update as updateCamera } from './camera.js'
 import { getMode, isFirstPerson, onModeChanged, setMode, toggleMode } from './modes.js'
 import { bodyCount, initPhysics, stepPhysics } from './physics.js'
@@ -97,6 +97,10 @@ const lobby = createLobby(scene, lighting, {
 bloxity.loadingStep('Building the arena')
 const arena = createArena(scene)
 createPlayerBody()
+// Every lobby spawn is a random clear spot near SPAWN, so players never stack on one point.
+const pickLobbySpawn = () => lobbySpawn((x, z) => lobby.spawnClear(x, z))
+setSpawnPicker(pickLobbySpawn)
+resetPlayer(pickLobbySpawn(), SPAWN_FACING)
 syncYawToPlayer()
 
 // positional ambience: campfire, the crate beams, wind in the shaft
@@ -680,7 +684,8 @@ function finishDeath() {
 function goLobby() {
   death = null
   bloxity.hideDeathScreen()
-  resetPlayer(SPAWN, SPAWN_FACING)
+  const spawnAt = pickLobbySpawn()
+  resetPlayer(spawnAt, SPAWN_FACING)
   syncYawToPlayer()
   Object.assign(playerEnv, { swim: 0, speedMul: 1, climb: false, maxFall: 0, killY: PHYSICS.killY, onVoid: null })
   zone = 'lobby'
@@ -695,11 +700,14 @@ function goLobby() {
   sfx.setBiome(null)
   sfx.setLobbyAmbience(1)
   combat.onLobby()
-  lastPos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z }
+  lastPos = { x: spawnAt.x, y: spawnAt.y, z: spawnAt.z }
   setTimeout(() => hud.fade(false), 250)
 }
 function respawnKey() {
-  if (zone === 'lobby') return respawn()
+  if (zone === 'lobby') {
+    resetPlayer(pickLobbySpawn(), SPAWN_FACING)
+    return syncYawToPlayer()
+  }
   if (zone === 'dead') return tryRespawn() // R = the Respawn button (once its countdown is over)
   if (zone === 'duel') {
     hud.toast('You left the duel', 'bad')

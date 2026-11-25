@@ -208,6 +208,15 @@ export function createLobby(scene, lighting, { onEvent } = {}) {
       duelsCount = n
     },
 
+    // True when (x, z) is open flat ground at spawn height: a solid block at y = -1 and
+    // nothing solid at y = 0..2 (no wall, plant stem, stall or fence). Used to spread spawns.
+    spawnClear(x, z) {
+      const bx = Math.floor(x)
+      const bz = Math.floor(z)
+      const solid = (y) => !!blockInfo(voxels.id(bx, y, bz))?.solid
+      return solid(-1) && !solid(0) && !solid(1) && !solid(2)
+    },
+
     // Block underfoot: { name, sound } for footsteps and landing chips.
     surfaceAt(x, y, z) {
       for (const dy of [-0.05, -0.55]) {

@@ -66,7 +66,7 @@ function attach(room) {
 }
 
 let launchRoom = launchRoomId()
-// "<relayRoomId>~<colyseusRoomId>" of the room we are in (what updateRoom() reported)
+// the Colyseus room id of the room we are in (what updateRoom() reported)
 let currentRoomId = ''
 async function joinLaunchRoom(options) {
   const id = launchRoom
@@ -99,7 +99,11 @@ async function connect() {
     const { room, relay } = (await joinLaunchRoom(options)) ?? (await joinAnyRoom(options))
     retryIn = NET.retry
     attach(room)
-    currentRoomId = relay ? `${relay}~${room.roomId}` : room.roomId
+    // The room id Boxity shows friends / the Esc menu's "In this server" list and puts in invite links must
+    // be the SAME string for everyone in the room. The relay half ("<relay>~<room>") is allocated per
+    // player, so two players in one room would report different ids and never see each other: report
+    // the bare room id. ?roomId= still finds it (locateRoom looks a bare id up in the matchmaker's directory).
+    currentRoomId = room.roomId
     updateRoom(currentRoomId)
     console.info(`[net] joined ${NET.room} ${room.roomId} as ${room.sessionId}`)
   } catch (err) {
