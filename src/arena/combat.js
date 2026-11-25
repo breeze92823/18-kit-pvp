@@ -77,7 +77,6 @@ export function createCombat(scene, arena, camera, hooks) {
   const life = { kills: 0, gold: 0, xp: 0 }
   let swingCount = 0 // sent in the pose so the others see you swing
   let lockedUntil = 0 // duel countdown: no moving or fighting until then
-  const duelHooks = {}
   let snapAcc = 0
   let lastAttackAt = -99 // time of your last hit given / taken (combat tag)
   let lastSwing = -99
@@ -418,7 +417,8 @@ export function createCombat(scene, arena, camera, hooks) {
     fx: { ...fx, fireAt: (x, y, z) => effects.fx.fire(x, y, z, 1) },
   }
   const bots = createArenaBots(scene, arena, botCtx)
-  // duel practice: its own bot set on the duel platforms, simulated here only
+  // duels: no bots, only your opponent. This set holds the Necromancer's zombies raised up on the
+  // duel platforms (simulated here only)
   const practice = hooks.duelWorld ? createArenaBots(scene, hooks.duelWorld, botCtx, { seedStart: 50000 }) : { bots: [], byId: () => null, update() {}, clear() {}, spawnMinions: () => false }
   const mgr = (b) => b.mgr ?? bots
   const inDuel = () => hooks.zone() === 'duel'
@@ -689,11 +689,7 @@ export function createCombat(scene, arena, camera, hooks) {
     v.alive = false
     effects.forget(v)
     if (v.minion) return null // summons die quietly and pay nothing
-    // duels (practice bot / you in a duel): the duel keeps the score; no kill rewards or feed
-    if (v.mgr === practice) {
-      duelHooks.botDied?.(v, killer, cause)
-      return killer
-    }
+    // you in a duel: the server keeps the score; no kill rewards or feed
     if (v.isPlayer && inDuel()) return killer
     if (!inDuel()) hooks.feed(deathLine(v, killer, cause))
     const endedStreak = v.streak
@@ -1252,23 +1248,12 @@ export function createCombat(scene, arena, camera, hooks) {
         fallPeak = player.position.y
         wasGrounded = true
       },
-      // practice: (re)place the bot on its spawn, rooted for the countdown
-      practiceBot(at, facing, kitId, lockFor) {
-        practice.clear()
-        const b = practice.spawnFighter(now, at, kitId, facing, lockFor)
-        b.status.root = now + lockFor
-        b.target = you
-        return b
-      },
       clear() {
-        practice.clear()
+        practice.clear() // summons left over from the duel
         lockedUntil = 0
       },
       locked: () => now < lockedUntil,
       lockLeft: () => Math.max(0, lockedUntil - now),
-      onBotDied(fn) {
-        duelHooks.botDied = fn
-      },
     },
     onLobby() {
       you.alive = false
@@ -1305,11 +1290,10 @@ export function createCombat(scene, arena, camera, hooks) {
       const arenaNow = inArena()
       playerTick(dt)
       you.drawT = drawing ? drawT : null
-      // bots: run here offline or as the host (fewer when real players fight); else draw the host's
-      const others = hooks.remote?.inArena() ?? 0
-      const want = Math.max(NET.minBots, (COARSE ? COMBAT.bots.countTouch : COMBAT.bots.count) - others)
+      // No fake players: the arena is real players only. The bot manager still runs for the
+      // Necromancer's zombies (summons): this client simulates them, or the host does for us.
       const sim = simulatesBots()
-      bots.update(dt, t, active, { simulate: sim, target: want })
+      bots.update(dt, t, active, { simulate: sim, target: 0 })
       practice.update(dt, t, inDuel(), { simulate: true, target: 0 })
       if (sim && net.connected) {
         snapAcc += dt

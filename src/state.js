@@ -1,9 +1,10 @@
-// The local save: gold, level/XP, stats, owned kits/looks, hotbar items and
-// the daily-reward streak. Kept in localStorage (wrapped: storage can be
-// blocked) until the backend save is rebuilt. Change listeners drive the HUD.
+// The player's progress: gold, level/XP, stats, owned kits/looks, hotbar items and the
+// daily-reward streak. It is NEVER kept in the browser: the game server's database is the only
+// save (sync.js sends every change; the server's `progress` replaces this state on joining). A
+// guest, or a session the server could not reach, keeps its progress in memory for the page only.
+// Change listeners drive the HUD.
 import { DAILY_REWARD, KITS, STARTER, xpForLevel } from './config.js'
 
-const KEY = 'kitpvp-save-v1'
 const DAY = 24 * 3600 * 1000
 
 // A brand-new save starts with STARTER Gold + golden apples (hydrate() lays a real save over it).
@@ -25,18 +26,8 @@ const fresh = () => ({
   settings: { sfx: 0.8, ambience: 0.6, scoreboard: true },
 })
 
-export const state = load()
+export const state = fresh()
 const listeners = new Set()
-
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (raw) return migrate({ ...fresh(), ...JSON.parse(raw) })
-  } catch {
-    // storage blocked: play with an in-memory save
-  }
-  return fresh()
-}
 // Old saves: the first free kit was 'knight' (now 'swordsman'); drop kits that no
 // longer exist and always own the free ones.
 function migrate(s) {
@@ -48,38 +39,20 @@ function migrate(s) {
   return s
 }
 
-let saveTimer = 0
-let storeKey = KEY // a signed-in account keeps its own browser copy (sync.js), so the guest save survives
-export function save() {
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(storeKey, JSON.stringify(state))
-    } catch {
-      // ignore
-    }
-  }, 200)
-}
-
 // --- server saves (sync.js) ----------------------------------------------------------------
-// What travels to the server (backend kitStore.ts sanitizeKitSave): the progress, not the
-// per-device settings.
+// What travels to the server (backend kitStore.ts sanitizeKitSave): the progress and the
+// player's settings (volumes, scoreboard), all of it saved server-side.
 export function snapshot() {
-  const { settings, ...rest } = state
-  return { ...rest, settings: { scoreboard: !!settings.scoreboard } }
+  return JSON.parse(JSON.stringify(state))
 }
-// The account's save replaces the local progress (settings stay this device's).
-export function hydrate(save, accountKey) {
+// The account's save replaces the in-memory progress (settings missing from an old save keep
+// their current values).
+export function hydrate(save) {
   const keep = state.settings
   const next = migrate({ ...fresh(), ...save })
   for (const k of Object.keys(state)) delete state[k]
-  Object.assign(state, next, { settings: { ...keep, ...(save.settings?.scoreboard !== undefined ? { scoreboard: save.settings.scoreboard } : {}) } })
-  if (accountKey) storeKey = `${KEY}:${accountKey}`
+  Object.assign(state, next, { settings: { ...keep, ...(save.settings ?? {}) } })
   changed()
-}
-// signed in with no server save yet: keep playing on this browser's progress, saved under the account
-export function useAccountKey(accountKey) {
-  storeKey = accountKey ? `${KEY}:${accountKey}` : KEY
 }
 
 export function onChange(fn) {
@@ -89,7 +62,6 @@ export function onChange(fn) {
 }
 export function changed() {
   for (const fn of listeners) fn(state)
-  save()
 }
 
 export function spend(amount) {

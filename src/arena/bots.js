@@ -277,7 +277,6 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
     return b
   }
 
-  const count = COARSE_POINTER ? B.countTouch : B.count
   const respawnAt = [] // game times when a new bot drops in
   let started = false
 
@@ -900,7 +899,7 @@ export function createArenaBots(scene, arena, ctx, opts = {}) {
     update(dt, t, active, opts = {}) {
       group.visible = active
       const simulate = opts.simulate ?? true
-      const target = opts.target ?? count
+      const target = opts.target ?? 0 // no fake players: only summons (zombies) live here
       if (simulate && !simulating) takeOver(t)
       simulating = simulate
       if (!simulate) return updatePuppets(dt, t)

@@ -8,7 +8,8 @@
 // combat.js sends hits / acts / fx / deaths and handles what the others send.
 import { Client } from '@colyseus/sdk'
 import { NET, SERVER_URL } from './config.js'
-import { canResolveServer, getToken, launchRoomId, locateRoom, resolveServerEndpoint, subscribeAuth, updateRoom } from './bloxity.js'
+import { authState, canResolveServer, getEquippedAvatar, getProportions, getToken, launchRoomId, locateRoom, onAvatarChanged, onProportionsChanged, resolveServerEndpoint, subscribeAuth, updateRoom } from './bloxity.js'
+import { serializeLook } from './avatar/look.js'
 
 export const net = {
   room: null,
@@ -18,6 +19,10 @@ export const net = {
 const handlers = new Map() // type -> Set(fn)
 let poseFn = null // () => pose object (main.js)
 let joinFn = null // () => { kit, pose } for the join options
+
+// The signed-in player's Bloxity look as JSON for the others to draw ('' = the stock rig: guests).
+// The server relays it as an opaque string; avatar/look.js validates it on the receiving side.
+const lookJson = () => (authState.user ? serializeLook(getEquippedAvatar(), getProportions()) : '')
 
 export const hasServer = () => !!SERVER_URL || canResolveServer()
 export const roster = () => (net.connected ? net.room?.state?.players ?? null : null)
@@ -80,13 +85,15 @@ async function joinAnyRoom(options) {
   return { room: await new Client(endpoint).joinOrCreate(NET.room, options), relay: relayRoomId }
 }
 
+let sentLook = ''
 let connecting = false
 let retryIn = NET.retry
 async function connect() {
   if (!hasServer() || connecting || net.connected) return
   connecting = true
   try {
-    const options = { token: getToken(), ...(joinFn?.() ?? {}) }
+    const options = { token: getToken(), avatar: lookJson(), ...(joinFn?.() ?? {}) }
+    sentLook = options.avatar
     const { room, relay } = (await joinLaunchRoom(options)) ?? (await joinAnyRoom(options))
     retryIn = NET.retry
     attach(room)
@@ -124,6 +131,20 @@ export function initNet({ pose, join } = {}) {
   joinFn = join
   if (!hasServer()) return console.info('[net] no server configured; playing offline')
   setInterval(sendPose, 1000 / NET.poseHz)
+  // a new look (customizer, body sliders, a sign-in settling): tell the room, debounced (the SDK fires
+  // twice per change) and only when it really changed
+  let lookTimer = 0
+  const pushLook = () => {
+    clearTimeout(lookTimer)
+    lookTimer = setTimeout(() => {
+      const look = lookJson()
+      if (!net.connected || look === sentLook) return
+      sentLook = look
+      send('setAvatar', { avatar: look })
+    }, 400)
+  }
+  onAvatarChanged(pushLook)
+  onProportionsChanged(pushLook)
   // a sign-in mid-session: rejoin so the server verifies the new identity
   let signedIn = null
   subscribeAuth((s) => {

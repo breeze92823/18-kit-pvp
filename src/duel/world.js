@@ -1,4 +1,4 @@
-// Duel platforms: DUEL.slots online platforms + one practice platform, floating in two rows
+// Duel platforms: DUEL.slots platforms, floating in two rows
 // out past the arena along +x (inside the VoxelWorld key range, see DUEL in config.js). Each is a round stone-brick island
 // with two cover pillars topped with glowstone, spawn pads at either end and an open edge: a
 // knockback off it loses the round. Built as one VoxelWorld (mesh + colliders) with the same
@@ -27,7 +27,7 @@ export function spawnOf(slot, side) {
 export function createDuelWorld(scene) {
   const W = new VoxelWorld()
   const R = DUEL.radius
-  for (let slot = 0; slot <= DUEL.practiceSlot; slot++) {
+  for (let slot = 0; slot < DUEL.slots; slot++) {
     const T = THEMES[slot % THEMES.length]
     const c = slotCenter(slot)
     const rand = mulberry32(77 + slot)

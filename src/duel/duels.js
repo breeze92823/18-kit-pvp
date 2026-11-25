@@ -2,14 +2,13 @@
 //  - online (casual / ranked): the server (KitRoom.ts) matches two players, picks a platform and
 //    a side each, runs the rounds (duelStart, duelRound, duelScore, duelEnd) and keeps the ranked
 //    rating; each client reports its own death (duelDied) and quitting (duelLeave = forfeit).
-//  - practice: against a bot on the practice platform, run entirely on this client.
-// main.js does the moving (enter / spawn / exit); combat.js locks you during the countdown and
-// owns the practice bot. Rewards: DUEL.rewards (Gold + XP), paid here when a duel ends.
+// There are no bots: a duel is always against another player.
+// main.js does the moving (enter / spawn / exit); combat.js locks you during the countdown.
+// Rewards: DUEL.rewards (Gold + XP), paid here when a duel ends.
 import './duel.css'
-import { DUEL, KITS } from '../config.js'
+import { DUEL } from '../config.js'
 import { addGold, addXp, changed, state } from '../state.js'
 import { net, on as onNet, send } from '../net.js'
-import { spawnOf } from './world.js'
 import * as sfx from '../audio.js'
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
@@ -19,7 +18,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export function createDuels(hooks) {
   const S = {
     phase: 'idle', // idle | queued | duel
-    mode: 'casual', // casual | ranked | practice
+    mode: 'casual', // casual | ranked
     id: '',
     slot: -1,
     side: 0,
@@ -31,7 +30,6 @@ export function createDuels(hooks) {
     rating: 1000,
     won: 0, // ranked record (server)
     lost: 0,
-    botKit: '',
   }
   let roundTimer = 0
 
@@ -49,7 +47,7 @@ export function createDuels(hooks) {
     const me = S.side
     const op = 1 - me
     const dots = (n) => [...Array(DUEL.wins)].map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')
-    const label = S.mode === 'ranked' ? 'RANKED' : S.mode === 'practice' ? 'PRACTICE' : 'DUEL'
+    const label = S.mode === 'ranked' ? 'RANKED' : 'DUEL'
     bar.innerHTML = `<div class="side you"><b>${esc(hooks.playerName())}</b><span class="dots">${dots(S.score[me])}</span></div><div class="mid"><small>${label}</small>${S.score[me]} - ${S.score[op]}<small>Round ${S.round}</small></div><div class="side them"><span class="dots">${dots(S.score[op])}</span><b>${esc(S.opponent)}</b></div>`
     bar.classList.add('on')
   }
@@ -79,10 +77,6 @@ export function createDuels(hooks) {
     clearTimeout(roundTimer)
     hooks.spawn(S.slot, S.side)
     hooks.combat.duel.round(lockS)
-    if (S.mode === 'practice') {
-      const sp = spawnOf(S.slot, 1 - S.side)
-      hooks.combat.duel.practiceBot(sp, sp.facing, S.botKit, lockS)
-    }
     drawBar()
     countdown(Math.round(lockS))
   }
@@ -100,11 +94,9 @@ export function createDuels(hooks) {
     if (gold) addGold(gold)
     const ups = xp ? addXp(xp) : 0
     state.duels = state.duels ?? { won: 0, lost: 0 }
-    if (mode !== 'practice') {
-      if (won) state.duels.won++
-      else state.duels.lost++
-      changed()
-    }
+    if (won) state.duels.won++
+    else state.duels.lost++
+    changed()
     const title = won ? 'VICTORY!' : 'DEFEAT'
     const parts = []
     if (forfeit) parts.push(won ? 'Your opponent left' : 'You left the duel')
@@ -123,21 +115,6 @@ export function createDuels(hooks) {
     setTimeout(() => hooks.exit(), 1800)
     hooks.changed()
   }
-
-  // --- practice: everything local ---
-  function practiceRoundOver(iWon) {
-    if (S.phase !== 'duel' || S.mode !== 'practice') return
-    const w = iWon ? S.side : 1 - S.side
-    S.score[w]++
-    drawBar()
-    if (S.score[w] >= DUEL.wins) return finish(iWon, false)
-    flash(iWon ? 'Round won!' : 'Round lost', iWon ? 'win' : 'lose', 1400)
-    roundTimer = setTimeout(() => {
-      S.round++
-      startRound(DUEL.countdown)
-    }, 2500)
-  }
-  hooks.combat.duel.onBotDied(() => practiceRoundOver(true))
 
   // --- online ---
   onNet('duelStart', (m) => {
@@ -175,13 +152,13 @@ export function createDuels(hooks) {
   })
   onNet('disconnect', () => {
     if (S.phase === 'queued') S.phase = 'idle'
-    if (S.phase === 'duel' && S.mode !== 'practice') finish(false, true)
+    if (S.phase === 'duel') finish(false, true)
     hooks.changed()
   })
 
   return {
     state: S,
-    id: () => (S.phase === 'duel' ? S.id || 'practice' : ''),
+    id: () => (S.phase === 'duel' ? S.id : ''),
     inDuel: () => S.phase === 'duel',
     connected: () => net.connected,
     // the roster's rating for this player (live: ranked results update it)
@@ -204,28 +181,15 @@ export function createDuels(hooks) {
       S.phase = 'idle'
       hooks.changed()
     },
-    // practice vs a bot (its kit: random among the ones you could buy soon, or a mirror match)
-    practice(kitId = null) {
-      if (S.phase === 'queued') this.cancel()
-      if (S.phase !== 'idle') return
-      const pool = KITS.filter((k) => k.level <= Math.max(10, state.level + 10))
-      S.botKit = kitId ?? pool[Math.floor(Math.random() * pool.length)].id
-      Object.assign(S, { mode: 'practice', id: 'practice', slot: DUEL.practiceSlot, side: 0, opponent: `${KITS.find((k) => k.id === S.botKit)?.name ?? 'Bot'} Bot`, opponentId: '' })
-      enter()
-      S.round = 1
-      startRound(DUEL.countdown)
-    },
-    // R / leave: a forfeit online; practice just ends
+    // R / leave: a forfeit
     leave() {
       if (S.phase !== 'duel') return
-      if (S.mode === 'practice') return finish(false, true)
       send('duelLeave', {})
     },
     // main.js: you died in a duel
     onPlayerDied() {
       if (S.phase !== 'duel') return
-      if (S.mode === 'practice') practiceRoundOver(false)
-      else send('duelDied', {})
+      send('duelDied', {})
     },
     // the Duels NPC count: players in duels or queued (roster)
     playing() {
