@@ -222,6 +222,8 @@ export function installTouch(actions) {
   )
   const ability = abilityButton(actions)
   cluster.appendChild(ability.el)
+  const ult = ultButton(actions)
+  cluster.appendChild(ult.el)
 
   root.append(left, right, top, cluster)
   document.body.appendChild(root)
@@ -245,7 +247,39 @@ export function installTouch(actions) {
     dpad.reset()
     setTouchMove(0, 0)
   }
-  return { setAbility: ability.set, setMoveStyle }
+  return { setAbility: ability.set, setUlt: ult.set, setMoveStyle }
+}
+
+// The ultimate: a round button left of the ability that fills in the kit colour and pulses when
+// ready. Hidden outside a fight.
+function ultButton(actions) {
+  const b = el('button', 'touch-btn ult', '<i class="fill"></i><img alt=""><span>ULT</span>')
+  b.type = 'button'
+  const fill = b.querySelector('.fill')
+  const img = b.querySelector('img')
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    b.classList.add('on')
+    actions.ultimate?.()
+  })
+  const end = () => b.classList.remove('on')
+  b.addEventListener('pointerup', end)
+  b.addEventListener('pointercancel', end)
+  let shown = ''
+  // view: { iconUrl, k 0..1, ready, color } | null
+  const set = (view) => {
+    const key = view ? `${view.iconUrl}|${Math.round(view.k * 30)}|${view.ready}|${view.color}` : ''
+    if (key === shown) return
+    shown = key
+    b.classList.toggle('shown', !!view)
+    if (!view) return
+    if (img.src !== view.iconUrl) img.src = view.iconUrl
+    b.style.setProperty('--ult', view.color)
+    fill.style.height = `${Math.round(view.k * 100)}%`
+    b.classList.toggle('ready', !!view.ready)
+  }
+  return { el: b, set }
 }
 
 // D-pad: a 3x3 grid of arrow buttons. One finger slides between them (the pad

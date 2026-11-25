@@ -323,3 +323,66 @@
   font-weight: 700;
   pointer-events: none;
 }
+
+/* ultimate: round, left of the kit ability button */
+.touch-btn.ult {
+  --ult: #ffe04a;
+  display: none;
+  right: calc(var(--jump) + var(--gap) * 2 + (var(--jump) - var(--side)) / 2 + var(--side));
+  bottom: calc(var(--lift) + var(--jump) + var(--gap));
+  width: var(--side);
+  height: var(--side);
+  border-radius: 50%;
+  overflow: hidden;
+}
+.touch-btn.ult.shown {
+  display: flex;
+}
+.touch-btn.ult .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: var(--ult);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.touch-btn.ult img {
+  position: relative;
+  width: 52%;
+  height: 52%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.touch-btn.ult span {
+  position: absolute;
+  bottom: 6%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+.touch-btn.ult.ready {
+  border-color: var(--ult);
+  animation: touch-ult-pulse 0.9s ease-in-out infinite;
+}
+.touch-btn.ult.ready .fill {
+  opacity: 0.85;
+}
+.touch-btn.ult.on {
+  filter: brightness(1.3);
+}
+@keyframes touch-ult-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px var(--ult);
+  }
+  50% {
+    box-shadow: 0 0 18px var(--ult);
+  }
+}

@@ -381,56 +381,108 @@ export const STARTER = { gold: 150, apples: 2 }
 // needs the player level AND costs Gold (never premium currency, CLAUDE.md).
 // [id, name, icon art (lobby/pixelart.js), accent colour, level, armor points /20, armor set, description]
 // armor sets: leather | chain | iron | gold | diamond | dark | emerald | ruby | frost (lobby/characters.js)
+// The order is the Kits screen's "Default" sort. Kits with a showy power (lightning, a dash,
+// summons, turrets) sit early so a new player unlocks something exciting every few levels;
+// the quieter passive kits (extra Gold, kill heals, backstabs) come later.
 const KIT_TABLE = [
-  ['swordsman', 'Swordsman', 'sword', '#9a9aa0', 1, 15, 'iron', 'An iron sword and a full set of iron armor. Simple and reliable.'],
-  ['archer', 'Archer', 'bow', '#b07a3e', 1, 9, 'leather', 'A bow with 32 arrows and light leather armor. Hit them from afar.'],
-  ['bouncer', 'Bouncer', 'wand', '#9a6ad0', 1, 11, 'chain', 'A knockback stick that sends enemies flying off the edge.'],
-  ['glider', 'Glider', 'feather', '#cfd6dc', 2, 9, 'leather', 'Hold jump in the air to glide slowly across the void.'],
-  ['spring', 'Spring', 'spring', '#3aa02a', 4, 10, 'chain', 'Spring boots: jump three blocks high and take no fall damage.'],
+  ['swordsman', 'Swordsman', 'sword', '#9a9aa0', 1, 15, 'iron', 'An iron sword and full iron armor. Press F to lunge forward and strike.'],
+  ['archer', 'Archer', 'bow', '#b07a3e', 1, 9, 'leather', 'A bow with 32 arrows and light leather armor. Press F to fire a volley of three arrows.'],
+  ['bouncer', 'Bouncer', 'wand', '#9a6ad0', 1, 11, 'chain', 'A knockback stick. Press F for a Bounce Blast that launches everyone near you into the air.'],
+  ['glider', 'Glider', 'feather', '#cfd6dc', 2, 9, 'leather', 'Hold jump in the air to glide. Press F for a gust of wind that blows enemies away.'],
+  ['spark', 'Spark', 'wand_spark', '#ffd23a', 3, 10, 'chain', 'Every 4th hit in a row calls a lightning bolt. Press F to zap the nearest enemy.'],
+  ['spring', 'Spring', 'spring', '#3aa02a', 4, 10, 'chain', 'Spring boots: jump three blocks high, no fall damage. Press F for a Super Leap that slams down.'],
+  ['tamer', 'Wolf Tamer', 'bone', '#b8b8c0', 5, 10, 'leather', 'Press F to call a loyal wolf that hunts your enemies.'],
   ['tnt', 'TNT', 'tnt', '#d8302a', 6, 10, 'leather', 'Throws lit TNT that blasts blocks and players apart.'],
+  ['firework', 'Firework', 'rocket', '#ff5fa8', 7, 10, 'leather', 'Press F to rocket into the sky in a burst of fireworks that hurts everyone close by.'],
   ['snowman', 'Snowman', 'snow', '#9cc4f6', 8, 11, 'frost', 'Snowballs that slow enemies down on every hit.'],
-  ['grappler', 'Grappler', 'hook', '#7a7a84', 10, 10, 'chain', 'A grappling hook that pulls you to any block it hits.'],
-  ['tank', 'Tank', 'shield', '#2f5fb8', 12, 20, 'iron', 'Shield and heavy armor. Slow but almost impossible to knock back.'],
+  ['blinker', 'Blinker', 'orb_blink', '#ff7af0', 9, 9, 'chain', 'Press F to blink a few blocks forward in a flash. Quick on your feet.'],
+  ['slime', 'Slime', 'slime', '#6ad04a', 10, 11, 'emerald', 'Bouncy: higher jumps, no fall damage, less knockback. Throws sticky slime balls.'],
+  ['grappler', 'Grappler', 'hook', '#7a7a84', 11, 10, 'chain', 'A grappling hook that pulls you to any block it hits.'],
+  ['stormcaller', 'Stormcaller', 'wand_ice', '#8ad8ff', 12, 11, 'diamond', 'Calls lightning on the enemy you hit three times in a row.'],
+  ['tank', 'Tank', 'shield', '#2f5fb8', 13, 20, 'iron', 'Shield and heavy armor. Slow but almost impossible to knock back.'],
   ['medic', 'Medic', 'heal', '#e83a3a', 14, 11, 'leather', 'Heals nearby allies and starts with 3 golden apples.'],
+  ['samurai', 'Samurai', 'sword_jade', '#1a7a3a', 15, 13, 'emerald', 'A quick katana with a dash strike.'],
   ['pyro', 'Pyro', 'flame', '#e0401a', 16, 12, 'ruby', 'Fire sword: every hit sets the target alight.'],
   ['warper', 'Warper', 'orb', '#1f9a8a', 18, 10, 'chain', 'Three warp orbs to blink across the arena.'],
   ['miner', 'Miner', 'pickaxe_iron', '#8a8a8a', 20, 12, 'iron', 'Mines through blocks fast and places walls for cover.'],
-  ['frost', 'Frost', 'sword_ice', '#3a9ad0', 23, 13, 'frost', 'An ice blade that freezes enemies for half a second.'],
-  ['ninja', 'Ninja', 'star', '#e0a010', 26, 8, 'dark', 'Throwing stars and a double jump. Fast and fragile.'],
-  ['viking', 'Viking', 'axe', '#8a5a2b', 29, 14, 'iron', 'A heavy axe that breaks shields on hit.'],
-  ['alchemist', 'Alchemist', 'potion', '#e0507a', 32, 9, 'leather', 'Splash potions of harm, slowness and healing.'],
-  ['ranger', 'Ranger', 'bow_gold', '#f0c832', 35, 11, 'chain', 'Golden bow: arrows fly faster and pierce shields.'],
+  ['frost', 'Frost', 'sword_ice', '#3a9ad0', 22, 13, 'frost', 'An ice blade that freezes enemies for half a second.'],
+  ['necromancer', 'Necromancer', 'wand_dark', '#ff3a5a', 25, 10, 'dark', 'Raises two zombies to fight for you.'],
+  ['ninja', 'Ninja', 'star', '#e0a010', 27, 8, 'dark', 'Throwing stars and a double jump. Fast and fragile.'],
+  ['engineer', 'Engineer', 'pickaxe', '#3aa0a8', 30, 13, 'iron', 'Builds a turret that shoots arrows at enemies.'],
+  ['viking', 'Viking', 'axe', '#8a5a2b', 32, 14, 'iron', 'A heavy axe that breaks shields on hit.'],
+  ['alchemist', 'Alchemist', 'potion', '#e0507a', 34, 9, 'leather', 'Splash potions of harm, slowness and healing.'],
+  ['ranger', 'Ranger', 'bow_gold', '#f0c832', 36, 11, 'chain', 'Golden bow: arrows fly faster and pierce shields.'],
   ['druid', 'Druid', 'wand_nature', '#3a7a2a', 38, 10, 'emerald', 'Grows vines that root enemies to the ground.'],
-  ['pirate', 'Pirate', 'sword_gold', '#c89614', 42, 13, 'gold', 'A golden cutlass. Every kill drops extra Gold.'],
-  ['bomber', 'Bomber', 'orb_fire', '#d84a1a', 46, 10, 'ruby', 'Fire bombs that leave burning ground behind.'],
+  ['bomber', 'Bomber', 'orb_fire', '#d84a1a', 42, 10, 'ruby', 'Fire bombs that leave burning ground behind.'],
+  ['hunter', 'Hunter', 'bow_dark', '#6a4a8a', 46, 11, 'leather', 'Marks targets: they glow through walls for 5 seconds.'],
   ['crusader', 'Crusader', 'shield_red', '#c82a2a', 50, 18, 'iron', 'Sword and a red tower shield that blocks arrows.'],
   ['poseidon', 'Poseidon', 'trident', '#3ad0d0', 54, 13, 'diamond', 'A trident you can throw. Faster in water.'],
-  ['reaper', 'Reaper', 'axe_dark', '#4a4a5a', 58, 11, 'dark', 'Every kill restores 3 hearts.'],
-  ['vampire', 'Vampire', 'sword_red', '#a01c1c', 62, 12, 'dark', 'Steals a bit of health with every hit.'],
-  ['stormcaller', 'Stormcaller', 'wand_ice', '#8ad8ff', 66, 11, 'diamond', 'Calls lightning on the enemy you hit three times in a row.'],
-  ['engineer', 'Engineer', 'pickaxe', '#3aa0a8', 70, 13, 'iron', 'Builds a turret that shoots arrows at enemies.'],
-  ['necromancer', 'Necromancer', 'wand_dark', '#ff3a5a', 74, 10, 'dark', 'Raises two zombies to fight for you.'],
-  ['hunter', 'Hunter', 'bow_dark', '#6a4a8a', 78, 11, 'leather', 'Marks targets: they glow through walls for 5 seconds.'],
-  ['samurai', 'Samurai', 'sword_jade', '#1a7a3a', 82, 13, 'emerald', 'A quick katana with a dash strike.'],
-  ['beekeeper', 'Beekeeper', 'apple', '#f0c020', 86, 10, 'gold', 'Releases a swarm of bees that chase enemies.'],
-  ['ghost', 'Ghost', 'orb_ghost', '#c8d8e8', 90, 8, 'chain', 'Turns invisible for 4 seconds after taking damage.'],
-  ['golem', 'Golem', 'shield_gold', '#e0a010', 94, 20, 'gold', 'Huge health and a ground slam that knocks everyone back.'],
-  ['assassin', 'Assassin', 'sword_dark', '#5a4a70', 98, 9, 'dark', 'Hits from behind deal double damage.'],
-  ['blaze', 'Blaze', 'flame_blue', '#3a8aff', 102, 12, 'diamond', 'Blue fireballs that burn twice as hot.'],
-  ['gladiator', 'Gladiator', 'trident_gold', '#f0c832', 106, 16, 'gold', 'A golden spear. Each kill gives a stacking damage buff.'],
-  ['plague', 'Plague Bringer', 'potion_green', '#5ad04a', 110, 10, 'leather', 'Poison clouds that linger around the arena.'],
-  ['warden', 'Warden', 'orb_void', '#5a2a9a', 114, 17, 'dark', 'A sonic boom that goes through walls.'],
-  ['berserker', 'Berserker', 'axe_gold', '#f0c832', 118, 8, 'gold', 'Hits harder the lower your health is.'],
-  ['monk', 'Monk', 'heal_green', '#4ad04a', 121, 9, 'leather', 'Fists only, but every punch heals you a little.'],
-  ['chronomancer', 'Chronomancer', 'clock', '#ffd23a', 125, 11, 'gold', 'Rewinds you to where you were 3 seconds ago.'],
-  ['crusher', 'Crusher', 'mace', '#5a5a68', 128, 15, 'iron', 'A mace that hits harder the further you fell.'],
-  ['phoenix', 'Phoenix', 'wand_fire', '#e07a20', 132, 12, 'ruby', 'Comes back to life once per round in a burst of fire.'],
-  ['mystic', 'Mystic', 'potion_purple', '#a05ae0', 136, 10, 'dark', 'Swaps places with the enemy you hit.'],
-  ['champion', 'Champion', 'mace_gold', '#f0c832', 140, 17, 'gold', 'A golden mace and golden armor. The ultimate kit.'],
+  ['beekeeper', 'Beekeeper', 'apple', '#f0c020', 58, 10, 'gold', 'Releases a swarm of bees that chase enemies.'],
+  ['pirate', 'Pirate', 'sword_gold', '#c89614', 62, 13, 'gold', 'A golden cutlass. Every kill drops extra Gold.'],
+  ['vampire', 'Vampire', 'sword_red', '#a01c1c', 66, 12, 'dark', 'Steals a bit of health with every hit.'],
+  ['reaper', 'Reaper', 'axe_dark', '#4a4a5a', 70, 11, 'dark', 'Every kill restores 3 hearts.'],
+  ['ghost', 'Ghost', 'orb_ghost', '#c8d8e8', 74, 8, 'chain', 'Turns invisible for 4 seconds after taking damage.'],
+  ['golem', 'Golem', 'shield_gold', '#e0a010', 78, 20, 'gold', 'Huge health and a ground slam that knocks everyone back.'],
+  ['blaze', 'Blaze', 'flame_blue', '#3a8aff', 82, 12, 'diamond', 'Blue fireballs that burn twice as hot.'],
+  ['assassin', 'Assassin', 'sword_dark', '#5a4a70', 86, 9, 'dark', 'Hits from behind deal double damage.'],
+  ['gladiator', 'Gladiator', 'trident_gold', '#f0c832', 90, 16, 'gold', 'A golden spear. Each kill gives a stacking damage buff.'],
+  ['plague', 'Plague Bringer', 'potion_green', '#5ad04a', 94, 10, 'leather', 'Poison clouds that linger around the arena.'],
+  ['warden', 'Warden', 'orb_void', '#5a2a9a', 98, 17, 'dark', 'A sonic boom that goes through walls.'],
+  ['berserker', 'Berserker', 'axe_gold', '#f0c832', 102, 8, 'gold', 'Hits harder the lower your health is.'],
+  ['monk', 'Monk', 'heal_green', '#4ad04a', 106, 9, 'leather', 'Fists only, but every punch heals you a little.'],
+  ['chronomancer', 'Chronomancer', 'clock', '#ffd23a', 110, 11, 'gold', 'Rewinds you to where you were 3 seconds ago.'],
+  ['crusher', 'Crusher', 'mace', '#5a5a68', 114, 15, 'iron', 'A mace that hits harder the further you fell.'],
+  ['phoenix', 'Phoenix', 'wand_fire', '#e07a20', 118, 12, 'ruby', 'Comes back to life once per round in a burst of fire.'],
+  ['mystic', 'Mystic', 'potion_purple', '#a05ae0', 122, 10, 'dark', 'Swaps places with the enemy you hit.'],
+  ['champion', 'Champion', 'mace_gold', '#f0c832', 126, 17, 'gold', 'A golden mace and golden armor. The ultimate kit.'],
 ]
 // Gold price grows with the level requirement (rounded to 25).
 const kitPrice = (level) => (level <= 1 ? 0 : Math.round((6 * level ** 1.75 + 40) / 25) * 25)
 export const KITS = KIT_TABLE.map(([id, name, icon, color, level, armor, armorSet, desc]) => ({ id, name, icon, color, level, armor, armorSet, desc, price: kitPrice(level) }))
+
+// Borrowing a kit you do not own, for ONE arena life (state.js borrow, hud/kits.js):
+//  - Kit of the Day: one kit a day (same for everyone, picked from the UTC date among the kits
+//    of at least `minLevel`) is free to try once per day, whatever your level.
+//  - Rent: any other kit for one life, for a share of its Gold price (rounded to 25, within
+//    rentMin..rentMax). Gold only, never premium currency.
+export const KIT_TRIAL = { minLevel: 6, rentShare: 0.05, rentMin: 50, rentMax: 600 }
+export const rentPrice = (kit) => Math.max(KIT_TRIAL.rentMin, Math.min(KIT_TRIAL.rentMax, Math.round((kit.price * KIT_TRIAL.rentShare) / 25) * 25))
+export const utcDay = (now = Date.now()) => Math.floor(now / 86400000)
+export function kitOfTheDay(day = utcDay()) {
+  const pool = KITS.filter((k) => k.level >= KIT_TRIAL.minLevel)
+  let h = (day * 2654435761) >>> 0
+  h = ((h ^ (h >>> 15)) * 2246822519) >>> 0
+  return pool[(h ^ (h >>> 13)) % pool.length]
+}
+
+// Kit mastery (state.mastery: kills per kit, owned or borrowed). Each tier pays extra Gold per kill
+// with that kit and adds a cosmetic in the kit's colour (arena/combat.js):
+//   Bronze: a burst on every kill, Silver: a sparkling swing trail, Gold: a glowing weapon,
+//   Diamond: a diamond aura while you fight.
+export const MASTERY = {
+  tiers: [
+    { kills: 10, name: 'Bronze', color: '#e09a5a', gold: 2, perk: 'Kill burst in the kit colour' },
+    { kills: 30, name: 'Silver', color: '#d8e0ec', gold: 4, perk: 'Sparkling swing trail' },
+    { kills: 75, name: 'Gold', color: '#ffd84a', gold: 6, perk: 'Glowing weapon' },
+    { kills: 150, name: 'Diamond', color: '#5ae0ff', gold: 10, perk: 'Diamond aura' },
+  ],
+}
+// 0 = no tier yet, 1..4 = MASTERY.tiers[n - 1]
+export const masteryTier = (kills) => MASTERY.tiers.filter((t) => kills >= t.kills).length
+
+// Ultimate (Q / the touch ULT button): every kit charges a meter by dealing damage (taking it counts
+// `takenMul`, a kill adds `killBonus`); full = `charge` hp. Each weapon family has its own move.
+// Resets every life (and every duel round).
+export const ULTIMATE = {
+  charge: 40,
+  takenMul: 0.35,
+  killBonus: 10,
+  sword: { name: 'Whirlwind', time: 1.4, every: 0.25, radius: 3.8, damage: 2.5 },
+  bow: { name: 'Arrow Rain', time: 1.5, arrows: 16, radius: 4.2, damage: 4 },
+  axe: { name: 'Earthquake', radius: 7, damage: 7, slow: 2.5 },
+  stick: { name: 'Shockwave', radius: 6.5, damage: 2, kb: 3.2 },
+  fist: { name: 'Flurry', time: 1, hits: 8, damage: 1.6, heal: 0.6, range: 4.5 },
+}
 
 // Shop (B): consumables that go to the hotbar, priced in Gold.
 export const SHOP_ITEMS = [
@@ -530,12 +582,18 @@ export const COMBAT = {
 //   nth hit in a row on the same target), swap (cooldown s).
 // ability (F / right click with nothing to use / the touch ability button): type + numbers;
 //   `ammo` = uses per life (refilled on each drop) instead of a cooldown-only power.
+//   `name` / `icon` override the HUD label and art of the ability type (abilities.js ABILITY_INFO).
 export const KIT_POWERS = {
-  swordsman: {},
-  archer: {},
-  bouncer: {},
-  glider: { glide: true, noFall: true },
-  spring: { jumpMul: 1.48, noFall: true },
+  swordsman: { ability: { type: 'dash', name: 'Lunge', icon: 'sword', cooldown: 6, damage: 4, speed: 15 } },
+  archer: { ability: { type: 'volley', cooldown: 7, arrows: 3, spread: 0.16, damage: 5 } },
+  bouncer: { ability: { type: 'slam', name: 'Bounce Blast', icon: 'wand', cooldown: 8, radius: 4, damage: 2, kb: 1.1, up: 2.6 } },
+  glider: { glide: true, noFall: true, ability: { type: 'gust', cooldown: 7, range: 7, damage: 1, kb: 2.6 } },
+  spark: { onHit: { lightning: 4, lightningDmg: 3 }, ability: { type: 'zap', cooldown: 8, range: 12, damage: 3 } },
+  spring: { jumpMul: 1.48, noFall: true, ability: { type: 'leap', cooldown: 8, up: 17, forward: 6, radius: 3.6, damage: 3 } },
+  tamer: { ability: { type: 'zombies', name: 'Call Wolf', icon: 'bone', kind: 'wolf', cooldown: 22, count: 1, life: 20, hp: 8 } },
+  firework: { noFall: true, ability: { type: 'rocket', cooldown: 9, up: 19, radius: 3.2, damage: 4 } },
+  blinker: { speed: 1.05, ability: { type: 'blink', cooldown: 5, range: 7 } },
+  slime: { jumpMul: 1.22, noFall: true, kbResist: 0.35, ability: { type: 'slimeball', ammo: 10, cooldown: 0.6, damage: 2, slow: 2.5 } },
   tnt: { ability: { type: 'tnt', cooldown: 6, damage: 10, radius: 4.2, fuse: 1.6 } },
   snowman: { ability: { type: 'snowball', ammo: 16, cooldown: 0.3, damage: 1, slow: 2.2 } },
   grappler: { noFall: true, ability: { type: 'hook', cooldown: 4, range: 32 } },

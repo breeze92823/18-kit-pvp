@@ -8,7 +8,7 @@ import './hud.css'
 import { CRATES, DAILY_REWARD, DUEL, KITS, LOOKS, SHOP_ITEMS, xpForLevel } from '../config.js'
 import { artCanvas, artURL } from '../lobby/pixelart.js'
 import { lootPreview } from '../crates.js'
-import { changed, claimDaily, dailyStatus, giveItem, onChange, spend, state } from '../state.js'
+import { activeKitId, changed, claimDaily, dailyStatus, giveItem, onChange, spend, state } from '../state.js'
 import * as sfx from '../audio.js'
 import { createKitsScreen } from './kits.js'
 import { boardStatus } from './combatHud.js'
@@ -195,7 +195,7 @@ export function createHud(ctx) {
     food.classList.toggle('low', v <= 6)
   }
   function renderBars() {
-    const kit = KITS.find((k) => k.id === state.kit) ?? KITS[0]
+    const kit = KITS.find((k) => k.id === activeKitId()) ?? KITS[0]
     const full = Math.floor(kit.armor / 2)
     const half = kit.armor % 2
     let h = ''
@@ -234,7 +234,7 @@ export function createHud(ctx) {
     if (shop) return shop.name
     const base = Object.keys(WEAPON_NAMES).find((k) => id.startsWith(k))
     if (!base) return id
-    const kit = KITS.find((k) => k.id === state.kit)
+    const kit = KITS.find((k) => k.id === activeKitId())
     return kit && kit.id !== 'swordsman' ? `${kit.name} ${WEAPON_NAMES[base]}` : id === 'sword' ? 'Iron Sword' : WEAPON_NAMES[base]
   }
   function renderHotbar() {
@@ -640,7 +640,7 @@ export function createHud(ctx) {
       pTitle.textContent = 'Duels'
       const D = ctx.duels?.()
       const wrap = el('div', 'hud-center hud-duels')
-      const kit = KITS.find((k) => k.id === state.kit)
+      const kit = KITS.find((k) => k.id === activeKitId())
       wrap.appendChild(el('p', '', `1v1 with your selected kit (<b>${kit?.name ?? 'Swordsman'}</b>). First to ${DUEL.wins} rounds wins. Knock them off the platform!`))
       if (!D) {
         pBody.appendChild(wrap)

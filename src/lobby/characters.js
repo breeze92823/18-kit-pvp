@@ -484,6 +484,99 @@ export function buildCharacter(opts) {
   return api
 }
 
+// --- Wolf (the Wolf Tamer's summon) ------------------------------------------------------------------
+// A blocky tamed wolf with a red collar. Same api as buildCharacter, so the bot code can drive it:
+// parts.armR/armL are the front legs, legR/legL the back legs, `head` bites on swing().
+const WOLF_MATS = {}
+function wolfMat(hex) {
+  return (WOLF_MATS[hex] ||= new MeshStandardMaterial({ color: hex, roughness: 0.9 }))
+}
+export function buildWolf(opts = {}) {
+  const root = new Group()
+  const box = (parent, w, h, d, x, y, z, hex, shadow = true) => {
+    const m = new Mesh(new BoxGeometry(w * PX, h * PX, d * PX), wolfMat(hex))
+    m.position.set(x * PX, y * PX, z * PX)
+    m.castShadow = shadow
+    parent.add(m)
+    return m
+  }
+  const FUR = '#d6d6da'
+  const FUR2 = '#a9a9b2'
+  const parts = {}
+  const mk = (name, x, y, z) => {
+    const g = new Group()
+    g.position.set(x * PX, y * PX, z * PX)
+    root.add(g)
+    parts[name] = g
+    return g
+  }
+  const legY = 8
+  const body = mk('body', 0, legY, 0)
+  box(body, 6, 6, 10, 0, 3, -0.5, FUR)
+  box(body, 7, 7, 5, 0, 3.5, 3.5, FUR2) // mane
+  box(body, 7.2, 1.6, 1.4, 0, 6.2, 5.6, '#c82a2a', false) // collar
+  const head = mk('head', 0, legY + 4, 6.5)
+  box(head, 6, 6, 4, 0, 1, 2, FUR)
+  box(head, 3, 3, 4, 0, -0.5, 5.5, FUR2) // snout
+  box(head, 1.2, 1.2, 0.6, 0, 0.4, 7.6, '#2a2a30', false) // nose
+  box(head, 2, 2, 1.6, -2, 4.5, 1.5, FUR2) // ears
+  box(head, 2, 2, 1.6, 2, 4.5, 1.5, FUR2)
+  box(head, 1, 1, 0.4, -1.6, 2, 4.1, '#1a1a1a', false) // eyes
+  box(head, 1, 1, 0.4, 1.6, 2, 4.1, '#1a1a1a', false)
+  const leg = (name, x, z) => {
+    const g = mk(name, x, legY, z)
+    box(g, 2, legY, 2, 0, -legY / 2, 0, FUR)
+    return g
+  }
+  leg('armR', -2, 3.5)
+  leg('armL', 2, 3.5)
+  leg('legR', -2, -4.5)
+  leg('legL', 2, -4.5)
+  const tail = mk('tail', 0, legY + 4.5, -5.5)
+  box(tail, 2, 2, 7, 0, 0, -3.2, FUR2)
+  tail.rotation.x = 0.6
+
+  let tag = null
+  if (opts.tag) {
+    tag = nameTag(opts.tag, opts.tagHeight ?? 0.42)
+    tag.position.y = 1.05 + (opts.tagHeight ?? 0.42) / 2
+    root.add(tag)
+  }
+  const anim = { phase: 0, bite: 0, time: Math.random() * 10, yaw: 0 }
+  return {
+    root,
+    parts,
+    tag,
+    outlineMat: null,
+    animate(dt, speed = 0, look = null) {
+      anim.time += dt
+      const walk = Math.min(1, speed / 4)
+      anim.phase += dt * (5 + speed * 2.2)
+      const sw = Math.sin(anim.phase) * 0.8 * walk
+      parts.armR.rotation.x = sw
+      parts.legL.rotation.x = sw
+      parts.armL.rotation.x = -sw
+      parts.legR.rotation.x = -sw
+      tail.rotation.y = Math.sin(anim.time * (walk > 0.1 ? 14 : 6)) * 0.45
+      body.position.y = legY * PX + Math.abs(Math.sin(anim.phase)) * 0.03 * walk
+      anim.yaw += ((look ? Math.max(-0.8, Math.min(0.8, look.yaw)) : 0) - anim.yaw) * Math.min(1, dt * 6)
+      head.rotation.y = anim.yaw
+      if (anim.bite > 0) {
+        anim.bite = Math.max(0, anim.bite - dt * 4)
+        const s = Math.sin((1 - anim.bite) * Math.PI)
+        head.rotation.x = s * 0.5
+        head.position.z = (6.5 + s * 1.5) * PX
+      } else head.rotation.x = look ? Math.max(-0.4, Math.min(0.4, look.pitch)) * 0.5 : 0
+    },
+    swing() {
+      if (anim.bite <= 0) anim.bite = 1
+    },
+    setVisible(v) {
+      root.visible = v
+    },
+  }
+}
+
 // --- Skin presets ------------------------------------------------------------------------------------
 export const SKINS = {
   kitMaster: { seed: 3, skin: '#f0c49a', hair: '#6b4426', hairStyle: 'long', eyes: '#3a7a3a', shirt: '#e0a21c', stripes: '#3a2410', pants: '#5a3a1e', shoes: '#3a2410', jacket: '#c98a14', belt: '#2a1a0a', blush: '#f0a090', sleeve: 12, gloves: '#3a2410' },

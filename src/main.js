@@ -24,7 +24,7 @@ import { disposeAnimator, makeAnimator } from './avatar/animator.js'
 import { EmotePlayer, emoteById, loadEmotes } from './avatar/emotes.js'
 import { createHud } from './hud/hud.js'
 import { createViewmodel } from './viewmodel.js'
-import { addXp, addGold, changed, dailyStatus, giveItem, onChange, state } from './state.js'
+import { activeKitId, addXp, addGold, changed, dailyStatus, giveItem, onChange, state } from './state.js'
 import { roll } from './crates.js'
 import { artURL } from './lobby/pixelart.js'
 import * as sfx from './audio.js'
@@ -367,7 +367,10 @@ const combat = createCombat(scene, arena, camera, {
   feed: (html) => hud.feed(html),
   toast: (text, kind) => hud.toast(text, kind),
   viewmodel,
-  touch: { setAbility: (v) => touchControls?.setAbility(v ? { ...v, iconUrl: artURL(v.icon, 4) } : null) },
+  touch: {
+    setAbility: (v) => touchControls?.setAbility(v ? { ...v, iconUrl: artURL(v.icon, 4) } : null),
+    setUlt: (v) => touchControls?.setUlt(v ? { ...v, iconUrl: artURL(v.icon, 4) } : null),
+  },
 })
 
 // Crate opening: roll, pay out, animate the chest, then pop the reward.
@@ -524,6 +527,7 @@ touchControls = installTouch({
   attackUp: () => combat.release(),
   abilityDown: () => !hud.isOpen() && combat.abilityDown(),
   abilityUp: () => combat.abilityUp(),
+  ultimate: () => !hud.isOpen() && combat.ultimate(),
 })
 onChange(() => touchControls.setMoveStyle(state.settings.dpad ? 'dpad' : 'stick'))
 const syncTouch = () => hud.setTouch(document.body.classList.contains('touch-ui'))
@@ -998,7 +1002,7 @@ const netPose = () => {
     ...combat.netPose(burnT > 0),
   }
 }
-initNet({ pose: netPose, join: () => ({ kit: state.kit, pose: netPose() }) })
+initNet({ pose: netPose, join: () => ({ kit: activeKitId(), pose: netPose() }) })
 initSync({ toast: (text, kind) => hud.toast(text, kind) })
 
 // A duel is over: the results screen (Boxity puts its banners around it for a few seconds).

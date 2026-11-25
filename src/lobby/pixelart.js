@@ -498,6 +498,72 @@ Object.assign(ART, {
       '................',
     ],
   },
+  // Wolf Tamer: a bone
+  bone: {
+    pal: { o: '#3a3a3a', w: '#f4f0e6', g: '#c8c0b0' },
+    rows: [
+      '............ooo.',
+      '...........owwwo',
+      '..........owwwwo',
+      '.........owwwwo.',
+      '........owwwgo..',
+      '.......owwwgo...',
+      '......owwwgo....',
+      '.....owwwgo.....',
+      '....owwwgo......',
+      '...owwwgo.......',
+      '..owwwgo........',
+      '.owwwwo.........',
+      'owwwwo..........',
+      'owwwo...........',
+      '.ooo............',
+      '................',
+    ],
+  },
+  // Firework: a paper rocket on a stick, fizzing
+  rocket: {
+    pal: { o: '#2a1a1a', r: '#e03a5a', R: '#a01a3a', w: '#fff0f4', s: '#b08a5a', y: '#ffd84a' },
+    rows: [
+      '.......oo.......',
+      '......orro......',
+      '.....orrrro.....',
+      '.....owwwwo.....',
+      '.....orrrro.....',
+      '.....orRrro.....',
+      '.....orrrro.....',
+      '.....owwwwo.....',
+      '.....orrrro.....',
+      '.....orrRro.....',
+      '.....oooooo.....',
+      '.......oso......',
+      '.......oso......',
+      '.......oso......',
+      '......y.o.y.....',
+      '.....y.....y....',
+    ],
+  },
+  // Slime: a happy slime ball
+  slime: {
+    pal: { o: '#1e4a14', g: '#6ad04a', G: '#3a8a2a', l: '#c8ffb0', d: '#1e3a14' },
+    rows: [
+      '................',
+      '.....oooooo.....',
+      '...ooggggggoo...',
+      '..oggllgggggGo..',
+      '.ogllllggggggGo.',
+      '.oglllgggggggGo.',
+      'oggllggggggggGGo',
+      'oggggggggggggGGo',
+      'ogggdgggggdgggGo',
+      'ogggdgggggdgggGo',
+      'oggggggggggggGGo',
+      '.oggggddddgggGo.',
+      '.oGggggggggGGGo.',
+      '..oGGGGGGGGGGo..',
+      '...oooooooooo...',
+      '................',
+    ],
+  },
   lock: {
     pal: { o: '#2a2a2a', s: '#b8b8b8', S: '#e8e8e8', w: '#f4f4f4', g: '#c8c8c8', k: '#7a4ab0', K: '#3a2a50' },
     rows: [
@@ -527,6 +593,8 @@ variant('wand_nature', 'wand', { o: '#12300a', s: '#3a7a2a', S: '#6ac04a', g: '#
 variant('wand_dark', 'wand', { o: '#0a060c', s: '#2a2030', S: '#4a3a5a', g: '#ff3a5a', w: '#ffb0c0' })
 variant('wand_fire', 'wand', { o: '#3a1004', s: '#a03a10', S: '#e07a20', g: '#ffe04a' })
 variant('wand_gold', 'wand', { o: '#3a2a00', s: '#c89614', S: '#f0c832', g: '#fff6c8' })
+variant('wand_spark', 'wand', { o: '#4a3a00', s: '#e0b020', S: '#ffe85a', g: '#ffffff', w: '#fff6a0' })
+variant('orb_blink', 'orb', { d: '#8a1a7a', m: '#e04ad0', l: '#ff9af0', w: '#ffe8fc', o: '#3a0634' })
 variant('sword_gold', 'sword', { w: '#fff6c8', g: '#f0c832', d: '#c89614' })
 variant('sword_dark', 'sword', { w: '#a89ac0', g: '#5a4a70', d: '#2a2030', h: '#7a1a2a', b: '#4a0a14' })
 variant('sword_red', 'sword', { w: '#ffc0b0', g: '#e0402a', d: '#8a1a10' })

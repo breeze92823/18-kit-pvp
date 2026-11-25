@@ -29,6 +29,7 @@ export const THROWN = {
   vines: { art: 'wand_nature', size: 0.4, speed: 32, gravity: -6, spin: 12 },
   poison: { art: 'potion_green', size: 0.36, speed: 20, gravity: -18, spin: 9 },
   hook: { art: 'hook', size: 0.4, speed: 60, gravity: 0, spin: 0, life: 0.6, line: true },
+  slimeball: { art: 'slime', size: 0.36, speed: 26, gravity: -16, spin: 7 },
 }
 const POTION_ART = { harm: 'potion', slow: 'potion_purple', heal: 'potion_green' }
 
@@ -89,6 +90,50 @@ export function createEffects(scene, arena, camera, api) {
     splash(x, y, z, color, r) {
       ring(x, y, z, r, color, 20, r * 1.4)
       burst(spark, 18, () => ({ x: x + (rr() - 0.5) * r, y: y + 0.2 + rr(), z: z + (rr() - 0.5) * r, vy: 1 + rr() * 2, life: 0.8, size: 0.22, sizeEnd: 0.03, color, twinkle: 5 }))
+    },
+    slime(x, y, z) {
+      burst(puff, 14, () => ({ x, y, z, vx: (rr() - 0.5) * 4, vy: 0.5 + rr() * 3, vz: (rr() - 0.5) * 4, gravity: -12, life: 0.6, size: 0.16, sizeEnd: 0.05, color: C.green, alpha: 0.95 }))
+      api.soundAt(x, y, z, (k) => sfx.squelch(k))
+    },
+    // a firework shell bursting: rings of coloured stars
+    firework(x, y, z, scale = 1) {
+      const cols = [C.heal, C.gold, C.cyan, C.green, C.purple]
+      for (let ring = 0; ring < 2; ring++) {
+        const c = cols[Math.floor(rr() * cols.length)]
+        burst(spark, 26, (i) => {
+          const a = (i / 26) * Math.PI * 2
+          const e = (rr() - 0.5) * 1.2
+          const s = (4 + ring * 2.5) * scale
+          return { x, y, z, vx: Math.cos(a) * Math.cos(e) * s, vy: Math.sin(e) * s + 1, vz: Math.sin(a) * Math.cos(e) * s, gravity: -4, drag: 1.8, life: 0.9 + rr() * 0.4, size: 0.26, sizeEnd: 0.03, color: c, twinkle: 10 }
+        })
+      }
+      api.soundAt(x, y, z, (k) => sfx.firework(k))
+    },
+    // a gust: puffs streaming along dir
+    gust(x, y, z, dx, dz, len) {
+      burst(puff, 26, () => {
+        const s = 6 + rr() * 8
+        const side = (rr() - 0.5) * 1.6
+        return { x: x - dz * side, y: y - 0.4 + rr() * 1.2, z: z + dx * side, vx: dx * s, vy: rr() * 0.6, vz: dz * s, drag: 2.5, life: (len / s) * 1.4, size: 0.4, sizeEnd: 1.1, color: C.white, alpha: 0.55, fadeIn: 0.02 }
+      })
+      api.soundAt(x, y, z, (k) => sfx.swing(0.7 * k))
+    },
+    // a spin of sparks in `color` around (x, z)
+    whirl(x, y, z, r, color) {
+      burst(spark, 18, (i) => {
+        const a = (i / 18) * Math.PI * 2 + rr() * 0.3
+        return { x: x + Math.cos(a) * r * 0.8, y: y + 0.6 + rr() * 0.9, z: z + Math.sin(a) * r * 0.8, vx: -Math.sin(a) * 7, vy: 0.4, vz: Math.cos(a) * 7, drag: 3, life: 0.35, size: 0.28, sizeEnd: 0.04, color, twinkle: 0 }
+      })
+    },
+    // somebody died at your hand: a burst + ring (in the kit's colour from Bronze mastery up)
+    killBurst(x, y, z, color, big = false) {
+      const c = color ?? C.gold
+      burst(spark, big ? 46 : 26, () => {
+        const a = rr() * Math.PI * 2
+        const s = 2 + rr() * (big ? 6 : 4)
+        return { x, y: y + 0.6 + rr() * 1.2, z, vx: Math.cos(a) * s, vy: 1 + rr() * 4, vz: Math.sin(a) * s, gravity: -6, drag: 1.6, life: 0.8 + rr() * 0.4, size: 0.3, sizeEnd: 0.04, color: c, twinkle: 8 }
+      })
+      ring(x, y, z, big ? 3 : 2, c, big ? 30 : 20, big ? 6 : 4)
     },
     explosion(x, y, z, r) {
       burst(glow, 30, () => {
@@ -167,6 +212,8 @@ export function createEffects(scene, arena, camera, api) {
       case 'star':
       case 'trident':
         return api.soundAt(x, y, z, (k) => sfx.arrowHit(k * 0.8))
+      case 'slimeball':
+        return fx.slime(x, y, z)
     }
   }
   function removeProjectile(i) {
@@ -251,6 +298,13 @@ export function createEffects(scene, arena, camera, api) {
         fx.splash(x, y, z, C.poison, 2)
         api.soundAt(x, y, z, (k) => sfx.glass(k))
         addArea('poison', x, y, z, o.radius ?? 3.2, o.life ?? 6, own, { dps: o.dps ?? 1.5 })
+        break
+      case 'slimeball':
+        fx.slime(x, y, z)
+        if (target) {
+          api.damage(target, o.damage ?? 2, own, { kind: 'projectile', kbScale: 1.3, upScale: 1.2, dir: flatDir(p) })
+          api.status(target, 'slow', o.slow ?? 2.5)
+        }
         break
       case 'hook': {
         if (target || !own.alive) break
@@ -762,7 +816,8 @@ export function createEffects(scene, arena, camera, api) {
       const d = Math.hypot(e.pos.x - owner.pos.x, e.pos.z - owner.pos.z)
       if (d > r || Math.abs(e.pos.y - owner.pos.y) > 2.5) continue
       const k = 1 - d / r
-      api.damage(e, (opts.damage ?? 4) * (0.5 + 0.5 * k), owner, { kind: 'melee', from: { x: owner.pos.x, z: owner.pos.z }, kbScale: 1.6 + k, upScale: 1.4, ignoreShield: true })
+      api.damage(e, (opts.damage ?? 4) * (0.5 + 0.5 * k), owner, { kind: 'melee', from: { x: owner.pos.x, z: owner.pos.z }, kbScale: (opts.kb ?? 1.6) + k, upScale: opts.up ?? 1.4, ignoreShield: true })
+      if (opts.slow) api.status(e, 'slow', opts.slow)
     }
     return true
   }
@@ -815,6 +870,219 @@ export function createEffects(scene, arena, camera, api) {
     return true
   }
 
+  // --- starter-kit abilities -----------------------------------------------------------------------------------
+  // archer: a fan of arrows (they fly and are relayed like any arrow)
+  function volley(owner, from, dir, opts) {
+    const n = opts.arrows ?? 3
+    const spread = opts.spread ?? 0.16
+    const base = Math.atan2(dir.x, dir.z)
+    const h = Math.hypot(dir.x, dir.z) || 1
+    const bow = { dmg: opts.damage ?? 5, dmgMax: opts.damage ?? 5, speed: 38, speedMax: 38, gravity: -18 }
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * spread
+      api.shoot(owner, from, { x: Math.sin(a) * h, y: dir.y, z: Math.cos(a) * h }, 1, bow)
+    }
+    return true
+  }
+  // glider: a cone of wind that blows everyone in front of you away
+  function gust(owner, from, dir, opts) {
+    const range = opts.range ?? 7
+    const h = Math.hypot(dir.x, dir.z) || 1
+    const dx = dir.x / h
+    const dz = dir.z / h
+    fx.gust(from.x, from.y, from.z, dx, dz, range)
+    if (api.local(owner)) api.emit({ t: 'gust', from: r3(from), dir: { x: Math.round(dx * 1000) / 1000, z: Math.round(dz * 1000) / 1000 }, len: range })
+    for (const e of api.entities()) {
+      if (!e.alive || api.allies(e, owner)) continue
+      const ex = e.pos.x - owner.pos.x
+      const ez = e.pos.z - owner.pos.z
+      const d = Math.hypot(ex, ez)
+      if (d > range || d < 0.01 || Math.abs(e.pos.y - owner.pos.y) > 3) continue
+      if ((ex * dx + ez * dz) / d < 0.6) continue // a ~53 degree cone
+      const k = 1 - d / range
+      api.damage(e, opts.damage ?? 1, owner, { kind: 'magic', dir: { x: dx, z: dz }, kbScale: (opts.kb ?? 2.6) * (0.6 + 0.4 * k), upScale: 1.1, ignoreShield: true })
+    }
+    return true
+  }
+  // spark: lightning on the enemy closest to where you look (nobody in range = nothing spent)
+  function zap(owner, from, dir, opts) {
+    let best = null
+    let bestS = -Infinity
+    for (const e of api.entities()) {
+      if (!e.alive || e.invisible || api.allies(e, owner)) continue
+      const ex = e.pos.x - from.x
+      const ey = e.pos.y + 1 - from.y
+      const ez = e.pos.z - from.z
+      const d = Math.hypot(ex, ey, ez)
+      if (d > (opts.range ?? 12) || d < 0.01) continue
+      const facing = (ex * dir.x + ey * dir.y + ez * dir.z) / d
+      if (facing < 0.5) continue
+      if (segmentClear(from.x, from.y, from.z, e.pos.x, e.pos.y + 1, e.pos.z) < 0.97) continue
+      const s = facing * 2 - d / 12
+      if (s > bestS) {
+        bestS = s
+        best = e
+      }
+    }
+    if (!best) return false
+    lightning(best, owner, opts.damage ?? 3)
+    api.soundAt(best.pos.x, best.pos.y, best.pos.z, (k) => sfx.zap(k))
+    return true
+  }
+  // spring: a huge jump; landing slams the ground
+  const leaps = []
+  function leap(owner, dirX, dirZ, opts) {
+    const h = Math.hypot(dirX, dirZ) || 1
+    const f = opts.forward ?? 6
+    api.push(owner, (dirX / h) * f, opts.up ?? 17, (dirZ / h) * f)
+    for (let i = leaps.length - 1; i >= 0; i--) if (leaps[i].owner === owner) leaps.splice(i, 1)
+    leaps.push({ owner, from: api.now(), opts })
+    ring(owner.pos.x, owner.pos.y, owner.pos.z, 1.5, C.green, 16, 3)
+    api.soundAt(owner.pos.x, owner.pos.y, owner.pos.z, (k) => sfx.swing(1.2 * k))
+    return true
+  }
+  function updateLeaps(t) {
+    for (let i = leaps.length - 1; i >= 0; i--) {
+      const l = leaps[i]
+      if (!l.owner.alive || t - l.from > 6) {
+        leaps.splice(i, 1)
+        continue
+      }
+      if (t - l.from < 0.3 || !l.owner.grounded) continue
+      leaps.splice(i, 1)
+      slam(l.owner, { radius: l.opts.radius ?? 3.6, damage: l.opts.damage ?? 3, kb: 1.2, up: 1.5 })
+    }
+  }
+  // firework: rocket yourself up in a burst of stars that hurts whoever stands close
+  function rocket(owner, opts) {
+    const p = owner.pos
+    fx.firework(p.x, p.y + 0.4, p.z)
+    fx.explosion(p.x, p.y, p.z, 1.2)
+    if (api.local(owner)) api.emit({ t: 'rocket', owner: api.key(owner), at: r3(p) })
+    const r = opts.radius ?? 3.2
+    for (const e of api.entities()) {
+      if (!e.alive || api.allies(e, owner)) continue
+      const d = dist3(e.pos.x, e.pos.y, e.pos.z, p.x, p.y, p.z)
+      if (d > r) continue
+      api.damage(e, (opts.damage ?? 4) * (0.5 + 0.5 * (1 - d / r)), owner, { kind: 'explosion', from: { x: p.x, z: p.z }, kbScale: 1.4, upScale: 1.4 })
+    }
+    api.push(owner, 0, opts.up ?? 19, 0)
+    sparkTrails.push({ owner, until: api.now() + 1.1 })
+    return true
+  }
+  const sparkTrails = []
+  // blinker: a short teleport forward, never through a wall
+  function blink(owner, dirX, dirZ, opts) {
+    const h = Math.hypot(dirX, dirZ) || 1
+    const dx = dirX / h
+    const dz = dirZ / h
+    const p = owner.pos
+    const range = opts.range ?? 7
+    // how far the way is clear at chest height
+    const f = segmentClear(p.x, p.y + 1.1, p.z, p.x + dx * range, p.y + 1.1, p.z + dz * range)
+    for (let d = Math.max(0, f * range - 0.6); d >= 1.5; d -= 0.5) {
+      const spot = standSpot(p.x + dx * d, p.y + 1.6, p.z + dz * d)
+      if (!spot || Math.abs(spot.y - p.y) > 2.2) continue
+      fx.portal(p.x, p.y, p.z)
+      if (api.local(owner)) api.emit({ t: 'portal', at: r3(p), to: r3(spot) })
+      api.teleport(owner, spot.x, spot.y, spot.z)
+      fx.portal(spot.x, spot.y, spot.z)
+      api.soundAt(spot.x, spot.y, spot.z, (k) => sfx.warp(k))
+      return true
+    }
+    return false
+  }
+
+  // --- ultimates (combat.js decides who and when; ULTIMATE in config.js) -----------------------------------------
+  // sword: spin with the blade out, hitting everyone around you a few times
+  const whirls = []
+  function whirlwind(owner, opts, color) {
+    whirls.push({ owner, until: api.now() + (opts.time ?? 1.4), next: 0, opts, color: col(color ?? '#ffffff'), ghost: !!opts.ghost })
+    if (!opts.ghost && api.local(owner)) api.emit({ t: 'whirl', owner: api.key(owner), time: opts.time ?? 1.4, color })
+    return true
+  }
+  function updateWhirls(t) {
+    for (let i = whirls.length - 1; i >= 0; i--) {
+      const w = whirls[i]
+      const o = w.owner
+      if (t > w.until || (!w.ghost && !o.alive)) {
+        whirls.splice(i, 1)
+        continue
+      }
+      const r = w.opts.radius ?? 3.8
+      if (rr() < 0.7) fx.whirl(o.pos.x, o.pos.y, o.pos.z, r, w.color)
+      if (t < w.next) continue
+      w.next = t + (w.opts.every ?? 0.25)
+      api.soundAt(o.pos.x, o.pos.y, o.pos.z, (k) => sfx.swing(1.4 * k))
+      if (w.ghost) continue
+      for (const e of api.entities()) {
+        if (!e.alive || api.allies(e, o)) continue
+        if (Math.hypot(e.pos.x - o.pos.x, e.pos.z - o.pos.z) > r || Math.abs(e.pos.y - o.pos.y) > 2.2) continue
+        api.damage(e, w.opts.damage ?? 2.5, o, { kind: 'melee', from: { x: o.pos.x, z: o.pos.z }, kbScale: 0.7, upScale: 0.6, ignoreIframes: true })
+      }
+    }
+  }
+  // bow: arrows rain from the sky around a spot
+  const rains = []
+  function arrowRain(owner, at, opts) {
+    const time = opts.time ?? 1.5
+    rains.push({ owner, at, left: opts.arrows ?? 16, every: time / (opts.arrows ?? 16), next: 0, opts })
+    ring(at.x, at.y, at.z, opts.radius ?? 4.2, C.red, 28, 3)
+    return true
+  }
+  const RAIN_BOW = { dmg: 4, dmgMax: 4, speed: 30, speedMax: 30, gravity: -20 }
+  function updateRains(t) {
+    for (let i = rains.length - 1; i >= 0; i--) {
+      const r = rains[i]
+      if (!r.owner.alive || r.left <= 0) {
+        rains.splice(i, 1)
+        continue
+      }
+      if (t < r.next) continue
+      r.next = t + r.every
+      r.left--
+      const a = rr() * Math.PI * 2
+      const d = Math.sqrt(rr()) * (r.opts.radius ?? 4.2)
+      const x = r.at.x + Math.cos(a) * d
+      const z = r.at.z + Math.sin(a) * d
+      const dmg = r.opts.damage ?? 4
+      api.shoot(r.owner, { x: x + 0.6, y: r.at.y + 14, z: z - 0.3 }, { x: -0.04, y: -1, z: 0.02 }, 1, { ...RAIN_BOW, dmg, dmgMax: dmg })
+    }
+  }
+  // fists: a flurry of punches on the closest enemy, each one healing you a little
+  const flurries = []
+  function flurry(owner, opts, color) {
+    flurries.push({ owner, left: opts.hits ?? 8, every: (opts.time ?? 1) / (opts.hits ?? 8), next: 0, opts, color: col(color ?? '#ffffff') })
+    return true
+  }
+  function updateFlurries(t) {
+    for (let i = flurries.length - 1; i >= 0; i--) {
+      const f = flurries[i]
+      const o = f.owner
+      if (!o.alive || f.left <= 0) {
+        flurries.splice(i, 1)
+        continue
+      }
+      if (t < f.next) continue
+      f.next = t + f.every
+      f.left--
+      let best = null
+      let bestD = f.opts.range ?? 4.5
+      for (const e of api.entities()) {
+        if (!e.alive || e.invisible || api.allies(e, o)) continue
+        const d = dist3(e.pos.x, e.pos.y, e.pos.z, o.pos.x, o.pos.y, o.pos.z)
+        if (d < bestD) {
+          bestD = d
+          best = e
+        }
+      }
+      api.soundAt(o.pos.x, o.pos.y, o.pos.z, (k) => sfx.swing(1.6 * k))
+      if (!best) continue
+      fx.whirl(best.pos.x, best.pos.y, best.pos.z, 0.6, f.color)
+      if (api.damage(best, f.opts.damage ?? 1.6, o, { kind: 'melee', from: { x: o.pos.x, z: o.pos.z }, kbScale: 0.35, ignoreIframes: true })) api.heal(o, f.opts.heal ?? 0.6)
+    }
+  }
+
   return {
     fx,
     turrets, // dev inspection
@@ -834,6 +1102,19 @@ export function createEffects(scene, arena, camera, api) {
     dash,
     track,
     rewind,
+    volley,
+    gust,
+    zap,
+    leap,
+    rocket,
+    blink,
+    whirlwind,
+    arrowRain,
+    flurry,
+    // a firework trail behind someone (replays of another player's rocket jump)
+    trail(owner, s = 1.1) {
+      sparkTrails.push({ owner, until: api.now() + s })
+    },
     forget(e) {
       history.delete(e)
     },
@@ -844,6 +1125,20 @@ export function createEffects(scene, arena, camera, api) {
       updateTurrets(dt, t)
       updateBees(dt, t)
       updateDashes(t)
+      updateLeaps(t)
+      updateWhirls(t)
+      updateRains(t)
+      updateFlurries(t)
+      for (let i = sparkTrails.length - 1; i >= 0; i--) {
+        const s = sparkTrails[i]
+        if (t > s.until) {
+          sparkTrails.splice(i, 1)
+          continue
+        }
+        const o = s.owner
+        const c = [C.heal, C.gold, C.cyan][Math.floor(rr() * 3)]
+        burst(spark, 2, () => ({ x: o.pos.x + (rr() - 0.5) * 0.4, y: o.pos.y + rr() * 0.4, z: o.pos.z + (rr() - 0.5) * 0.4, vy: -1.5, life: 0.6, size: 0.22, sizeEnd: 0.03, color: c, twinkle: 9 }))
+      }
       for (let i = bolts.length - 1; i >= 0; i--) {
         const b = bolts[i]
         b.line.material.opacity = Math.max(0, (b.until - t) / 0.25)

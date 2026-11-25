@@ -35,7 +35,13 @@ export function createCombatHud() {
   const status = el('div', 'cb-status')
   const kill = el('div', 'cb-kill hud-outline', '<div class="t"></div><div class="n"></div><div class="g"></div>')
   const ab = el('div', 'cb-ability', '<div class="ic"><img alt=""><div class="cd"></div><span class="cnt"></span><kbd>F</kbd></div><div class="nm hud-outline"></div>')
-  root.append(meter, hit, status, kill, ab)
+  const ultEl = el('div', 'cb-ult', '<div class="ic"><div class="fill"></div><img alt=""><kbd>Q</kbd></div><div class="nm hud-outline"></div>')
+  const crit = el('div', 'cb-crit')
+  root.append(meter, hit, status, kill, ab, ultEl, crit)
+  const ultFill = ultEl.querySelector('.fill')
+  const ultImg = ultEl.querySelector('img')
+  const ultName = ultEl.querySelector('.nm')
+  let shownUlt = ''
   const bar = meter.firstChild
   const abImg = ab.querySelector('img')
   const abCd = ab.querySelector('.cd')
@@ -100,6 +106,27 @@ export function createCombatHud() {
       ab.classList.toggle('ready', cd <= 0 && view.count !== 0)
       ab.classList.toggle('active', !!view.active)
     },
+    // view: { k 0..1, ready, name, icon, color } or null (combat.js)
+    ult(view) {
+      const key = view ? `${Math.round(view.k * 40)}|${view.ready}|${view.name}|${view.icon}|${view.color}` : ''
+      if (key === shownUlt) return
+      shownUlt = key
+      ultEl.classList.toggle('on', !!view)
+      if (!view) return
+      ultEl.style.setProperty('--ult', view.color)
+      ultFill.style.height = `${Math.round(view.k * 100)}%`
+      if (ultImg.dataset.icon !== view.icon) {
+        ultImg.dataset.icon = view.icon
+        ultImg.src = artURL(view.icon, 4)
+      }
+      ultName.textContent = view.ready ? `${view.name}!` : view.name
+      ultEl.classList.toggle('ready', view.ready)
+    },
+    critFlash() {
+      crit.classList.remove('on')
+      void crit.offsetWidth
+      crit.classList.add('on')
+    },
     killBanner(title, name, sub, streak = 0) {
       kill.querySelector('.t').textContent = streak >= 2 ? `${title} ×${streak}` : title
       kill.querySelector('.n').innerHTML = esc(name)
@@ -116,6 +143,7 @@ export function createCombatHud() {
       kill.classList.remove('on')
       this.status('')
       this.ability(null)
+      this.ult(null)
     },
   }
 }

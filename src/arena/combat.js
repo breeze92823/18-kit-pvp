@@ -9,18 +9,18 @@
 // screen and talks to this module through `hooks`.
 import { BoxGeometry, BufferAttribute, Color, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Ray, Vector3 } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { ARENA, ARENA_EVENTS, COARSE_POINTER as COARSE, COMBAT, FALL, HUNGER, KITS, SHOP_ITEMS, SHOP_USE } from '../config.js'
+import { ARENA, ARENA_EVENTS, COARSE_POINTER as COARSE, COMBAT, FALL, HUNGER, KITS, MASTERY, SHOP_ITEMS, SHOP_USE, ULTIMATE, masteryTier } from '../config.js'
 import { createPickups } from './pickups.js'
 import { player, playerEnv } from '../player.js'
 import { inputState } from '../input.js'
 import { segmentClear } from '../physics.js'
 import { Particles, TEX } from '../lobby/fx.js'
-import { addGold, addXp, changed, onChange, state } from '../state.js'
+import { activeKit, activeKitId, addGold, addMastery, addXp, changed, endBorrow, onChange, state } from '../state.js'
 import * as sfx from '../audio.js'
 import { createArenaBots } from './bots.js'
 import { armorCut, weaponFor } from './weapons.js'
 import { createEffects, THROWN } from './effects.js'
-import { ABILITY_INFO, createAbilities, potionLabel } from './abilities.js'
+import { abilityInfo, createAbilities, potionLabel } from './abilities.js'
 import { createCombatHud } from '../hud/combatHud.js'
 import { DUEL, NET } from '../config.js'
 import { net, on as onNet, send, simulatesBots } from '../net.js'
@@ -32,6 +32,7 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v)
 const BLOCKABLE = new Set(['melee', 'arrow', 'projectile'])
 const USABLE = new Set(['apple', 'potion', 'orb', 'steak', 'boost'])
 const THROWN_KINDS = new Set(Object.keys(THROWN))
+const KITS_BY_ID = new Map(KITS.map((k) => [k.id, k]))
 
 // hooks: { zone(), hurtPlayer(amount, source, kind), healPlayer(n), ignitePlayer(s, mul),
 //          knockPlayer(vx, vy, vz), teleportPlayer(x, y, z), playerHp(), setFood(n),
@@ -55,6 +56,9 @@ export function createCombat(scene, arena, camera, hooks) {
     },
     get hp() {
       return hooks.playerHp()
+    },
+    get grounded() {
+      return player.grounded
     },
     get level() {
       return state.level // bots go easier on rookies (COMBAT.rookie)
@@ -89,8 +93,34 @@ export function createCombat(scene, arena, camera, hooks) {
   let wasGrounded = true
   const held = { right: false, ability: false, slot: false }
 
-  const kitOf = () => KITS.find((k) => k.id === state.kit) ?? KITS[0]
+  const kitOf = () => activeKit() // a borrowed kit (Kit of the Day / rental) beats the equipped one
   const weapon = () => weaponFor(kitOf())
+  // the ultimate meter (ULTIMATE): 0..ULTIMATE.charge, refilled by dealing damage
+  let ult = 0
+  let ultBusyUntil = 0
+  const ultReady = () => ult >= ULTIMATE.charge
+  function chargeUlt(n) {
+    if (!(n > 0) || !you.alive) return
+    const was = ultReady()
+    ult = Math.min(ULTIMATE.charge, ult + n)
+    if (!was && ultReady()) {
+      sfx.ultReady()
+      hooks.toast(`${ultSpec().name} ready! Press ${hooks.isTouch() ? 'ULT' : 'Q'}`, 'good')
+    }
+  }
+  const ultSpec = () => ULTIMATE[weapon().type] ?? ULTIMATE.sword
+  // mastery tier of the kit you fight with (0..4) and its colour
+  const tierNow = () => masteryTier(state.mastery?.[activeKitId()] ?? 0)
+  let kcId = ''
+  let kc = new Color()
+  const kitColor = () => {
+    const k = kitOf()
+    if (k.id !== kcId) {
+      kcId = k.id
+      kc = new Color(k.color)
+    }
+    return kc
+  }
   // what your hand swings right now: the kit weapon in slot 1, fists otherwise
   function heldWeapon() {
     const w = weapon()
@@ -136,13 +166,47 @@ export function createCombat(scene, arena, camera, hooks) {
   const FIRE = new Color('#ff8a2a')
   const rr = Math.random
   const fx = {
-    hit(x, y, z, crit) {
+    // color: your kit's colour when the hit is yours (impact sparks in it)
+    hit(x, y, z, crit, color = null) {
       for (let i = 0; i < 8; i++) chips.emit({ x: x + (rr() - 0.5) * 0.4, y: y + (rr() - 0.5) * 0.5, z: z + (rr() - 0.5) * 0.4, vx: (rr() - 0.5) * 3, vy: 1 + rr() * 2.5, vz: (rr() - 0.5) * 3, gravity: -14, life: 0.45 + rr() * 0.25, size: 0.06, color: RED, fadeIn: 0.01 })
-      if (crit)
-        for (let i = 0; i < 16; i++) {
+      // a quick white impact flash
+      sparks.emit({ x, y, z, life: 0.12, size: crit ? 1.1 : 0.7, sizeEnd: 0.1, color: WHITE, twinkle: 0 })
+      if (color)
+        for (let i = 0; i < 7; i++) {
           const a = rr() * Math.PI * 2
-          sparks.emit({ x, y: y + (rr() - 0.3) * 0.6, z, vx: Math.cos(a) * (1.5 + rr() * 2), vy: 1 + rr() * 2.5, vz: Math.sin(a) * (1.5 + rr() * 2), gravity: -8, drag: 1.5, life: 0.6 + rr() * 0.3, size: 0.22, sizeEnd: 0.03, color: CRIT, twinkle: 12 })
+          sparks.emit({ x, y: y + (rr() - 0.5) * 0.4, z, vx: Math.cos(a) * (2 + rr() * 2.5), vy: 0.5 + rr() * 2, vz: Math.sin(a) * (2 + rr() * 2.5), gravity: -9, drag: 2, life: 0.35 + rr() * 0.2, size: 0.16, sizeEnd: 0.02, color, twinkle: 0 })
         }
+      if (crit)
+        for (let i = 0; i < 22; i++) {
+          const a = rr() * Math.PI * 2
+          sparks.emit({ x, y: y + (rr() - 0.3) * 0.6, z, vx: Math.cos(a) * (1.5 + rr() * 3), vy: 1 + rr() * 3, vz: Math.sin(a) * (1.5 + rr() * 3), gravity: -8, drag: 1.5, life: 0.6 + rr() * 0.3, size: 0.26, sizeEnd: 0.03, color: CRIT, twinkle: 12 })
+        }
+    },
+    // the arc your weapon draws in front of you (kit colour; sparkling from Silver mastery)
+    swingTrail(color, sparkle) {
+      camera.getWorldDirection(ray.direction)
+      camPos.set(player.position.x, player.position.y + EYE, player.position.z)
+      const fx0 = ray.direction.x
+      const fz0 = ray.direction.z
+      const h = Math.hypot(fx0, fz0) || 1
+      const f = { x: fx0 / h, z: fz0 / h }
+      const r = { x: -f.z, z: f.x } // right
+      const y0 = camPos.y - 0.15 + ray.direction.y * 1.2
+      for (let i = 0; i < 12; i++) {
+        const k = i / 11
+        const a = (k - 0.5) * 2.2 // from right-high to left-low
+        const side = Math.sin(a) * 1.1
+        const fwd = Math.cos(a) * 1.25
+        const x = camPos.x + f.x * fwd - r.x * side
+        const z = camPos.z + f.z * fwd - r.z * side
+        sparks.emit({ x, y: y0 + 0.35 - k * 0.7, z, vx: -r.x * 1.5, vz: -r.z * 1.5, drag: 4, life: 0.16 + k * 0.08, size: 0.2, sizeEnd: 0.05, color, twinkle: 0 })
+        if (sparkle && rr() < 0.6) sparks.emit({ x, y: y0 + 0.35 - k * 0.7, z, vx: (rr() - 0.5) * 1.2, vy: rr() * 1.4, vz: (rr() - 0.5) * 1.2, gravity: -3, life: 0.5 + rr() * 0.3, size: 0.12, sizeEnd: 0.02, color: CRIT, twinkle: 14 })
+      }
+    },
+    // Diamond mastery: a few glints around you
+    aura(x, y, z, color) {
+      const a = rr() * Math.PI * 2
+      sparks.emit({ x: x + Math.cos(a) * 0.6, y: y + 0.2 + rr() * 1.6, z: z + Math.sin(a) * 0.6, vy: 0.5 + rr() * 0.6, life: 0.8, size: 0.16, sizeEnd: 0.02, color, twinkle: 10 })
     },
     block(x, y, z) {
       for (let i = 0; i < 10; i++) sparks.emit({ x, y, z, vx: (rr() - 0.5) * 4, vy: rr() * 3, vz: (rr() - 0.5) * 4, gravity: -10, life: 0.35, size: 0.14, sizeEnd: 0.02, color: WHITE, twinkle: 0 })
@@ -389,7 +453,7 @@ export function createCombat(scene, arena, camera, hooks) {
     spawnMinions: (owner, a) => {
       if (inDuel()) return practice.spawnMinions(owner, a, now) // practice: next to you up here
       if (bots.simulating()) return bots.spawnMinions(owner, a, now)
-      send('summon', { a: { count: a.count, hp: a.hp, life: a.life } })
+      send('summon', { a: { count: a.count, hp: a.hp, life: a.life, kind: a.kind ?? 'zombie' } })
       return true
     },
   })
@@ -457,11 +521,14 @@ export function createCombat(scene, arena, camera, hooks) {
       if (source.protectedUntil > now) source.protectedUntil = 0
       if (source.isPlayer || source.owner === you) {
         // the other client applies it; pay on our estimate (armor + damage taken, capped at its hp)
-        payDamage(target, Math.min(amount * (1 - armorCut(target.armor ?? 0)) * (target.power?.dmgTaken ?? 1), Math.max(0, target.hp)))
+        const est = Math.min(amount * (1 - armorCut(target.armor ?? 0)) * (target.power?.dmgTaken ?? 1), Math.max(0, target.hp))
+        payDamage(target, est)
+        chargeUlt(est)
         hud.hitMarker(opts.crit)
+        if (opts.crit && source.isPlayer) hud.critFlash()
         lastAttackAt = now
         if (!opts.noFlinch) {
-          fx.hit(target.pos.x, target.pos.y + 1.15, target.pos.z, opts.crit)
+          fx.hit(target.pos.x, target.pos.y + 1.15, target.pos.z, opts.crit, kitColor())
           soundAt(target.pos.x, target.pos.y, target.pos.z, (k) => sfx.hit(opts.crit, k))
         }
       }
@@ -513,8 +580,12 @@ export function createCombat(scene, arena, camera, hooks) {
     if (target.power?.dmgTaken) n *= target.power.dmgTaken
     // rookies take less from bots (arrows, abilities and zombies too)
     if (target.isPlayer && !env && source.isBot && state.level < COMBAT.rookie.level) n *= COMBAT.rookie.botDmg
-    // Gold for damage you (or your summons) deal, before hurt() lowers the target's hp
-    if (!env && !target.isPlayer && (source.isPlayer || source.owner === you)) payDamage(target, Math.min(n, Math.max(0, target.hp)))
+    // Gold for damage you (or your summons) deal, before hurt() lowers the target's hp; it charges the ultimate too
+    if (!env && !target.isPlayer && (source.isPlayer || source.owner === you)) {
+      payDamage(target, Math.min(n, Math.max(0, target.hp)))
+      chargeUlt(Math.min(n, Math.max(0, target.hp)))
+    }
+    if (target.isPlayer && !env) chargeUlt(n * ULTIMATE.takenMul)
     let kb = null
     if (!env) {
       if (!opts.noFlinch) target.invulnUntil = now + COMBAT.iframes
@@ -525,11 +596,13 @@ export function createCombat(scene, arena, camera, hooks) {
         const [x, y, z] = kbFrom(target, source, opts, 1)
         kb = { x, y, z }
       }
+      const mine = source.isPlayer || source.owner === you
       if (!opts.noFlinch) {
-        fx.hit(target.pos.x, target.pos.y + 1.15, target.pos.z, crit)
+        fx.hit(target.pos.x, target.pos.y + 1.15, target.pos.z, crit, mine ? kitColor() : null)
         if (!target.isPlayer) soundAt(target.pos.x, target.pos.y, target.pos.z, (k2) => sfx.hit(crit, k2))
       }
-      if (source.isPlayer || source.owner === you) hud.hitMarker(crit)
+      if (mine) hud.hitMarker(crit)
+      if (crit && source.isPlayer) hud.critFlash()
       if (source.isPlayer || target.isPlayer || source.owner === you) lastAttackAt = now
     }
     if (target.isPlayer) {
@@ -602,7 +675,7 @@ export function createCombat(scene, arena, camera, hooks) {
       else source.hitChain = { target, n: 1 }
       if (source.hitChain.n >= oh.lightning) {
         source.hitChain = null
-        effects.lightning(target, source, 5)
+        effects.lightning(target, source, oh.lightningDmg ?? 5)
       }
     }
     if (oh.swap && now >= (source.swapReady ?? 0)) {
@@ -730,7 +803,27 @@ export function createCombat(scene, arena, camera, hooks) {
     const who = v.isBot ? '' : String(v.name ?? '')
     const repeat = who !== '' && who === lastVictim
     lastVictim = who
-    let gold = R.killGold + (you.power.killGold ?? 0)
+    // kit mastery: every kill with a kit counts toward its tiers (MASTERY); each tier pays extra Gold
+    const kid = activeKitId()
+    const before = tierNow()
+    addMastery(kid)
+    const tier = tierNow()
+    if (tier > before) {
+      const T = MASTERY.tiers[tier - 1]
+      hooks.feed(`<span style="color:${T.color}">[MASTERY]</span> ${nameHtml(you)} <span style="color:${T.color}">reached ${T.name} mastery with the ${esc(kitOf().name)} kit! ${esc(T.perk)} unlocked.</span>`)
+      hooks.toast(`${T.name} ${kitOf().name} mastery! ${T.perk}`, 'good')
+      sfx.levelUp()
+      if (tier >= 3) hooks.viewmodel.setGlow?.(kitOf().color)
+    }
+    // kill burst where they fell (kit-coloured from Bronze mastery, bigger at Diamond)
+    const at = v.pos ?? hooks.remote?.entities().find((r) => r.name === v.name)?.pos
+    if (at) {
+      const color = tier >= 1 ? kitOf().color : null
+      effects.fx.killBurst(at.x, at.y, at.z, color ? new Color(color) : null, tier >= 4)
+      emit({ t: 'killfx', at: r3(at), color: color ?? '', big: tier >= 4 })
+    }
+    chargeUlt(ULTIMATE.killBonus)
+    let gold = R.killGold + (you.power.killGold ?? 0) + (tier ? MASTERY.tiers[tier - 1].gold : 0)
     let xp = R.killXp
     if ((state.boostKills ?? 0) > 0) {
       xp *= 2
@@ -847,6 +940,8 @@ export function createCombat(scene, arena, camera, hooks) {
     swingCount = (swingCount + 1) & 255
     hooks.viewmodel.swing()
     sfx.swing()
+    // a coloured arc for a well-timed (charged) swing of the kit weapon
+    if (charge > 0.6 && state.selected === 0 && w.type !== 'fist') fx.swingTrail(kitColor(), tierNow() >= 2)
     const target = pickTarget(COMBAT.reach)
     if (!target) return
     const crit = charge > 0.9 && !player.grounded && player.velocity.y < 0
@@ -910,7 +1005,7 @@ export function createCombat(scene, arena, camera, hooks) {
     const a = you.power.ability
     if (!a) return false
     if (!abilities.ready(you, now)) {
-      if (you.ammo === 0) hooks.toast(`No ${ABILITY_INFO[a.type][0]} left this life`, 'bad')
+      if (you.ammo === 0) hooks.toast(`No ${abilityInfo(a)[0]} left this life`, 'bad')
       else sfx.deny()
       return false
     }
@@ -920,8 +1015,56 @@ export function createCombat(scene, arena, camera, hooks) {
       swingCount = (swingCount + 1) & 255
       lastAttackAt = Math.max(lastAttackAt, now - COMBAT.combatTag + 2)
       if (you.protectedUntil > now && a.type !== 'apple' && a.type !== 'rewind') you.protectedUntil = 0
-    } else sfx.deny()
+    } else {
+      sfx.deny()
+      if (a.type === 'zap') hooks.toast('No enemy in reach to zap', 'bad')
+      else if (a.type === 'blink') hooks.toast('No room to blink there', 'bad')
+    }
     return ok
+  }
+  // the life with a borrowed kit is over: back to your own
+  function endBorrowed() {
+    if (!state.borrow?.used) return
+    const b = endBorrow()
+    const k = KITS_BY_ID.get(b.id)
+    hooks.toast(`Your ${b.kind === 'trial' ? 'Kit of the Day trial' : 'rental'} of ${k?.name ?? 'that kit'} is over. Unlock it for good in the Kits menu!`, '')
+  }
+  // Q / the touch ULT button: the weapon family's ultimate once the meter is full
+  function useUltimate() {
+    if (!inArena() || now < lockedUntil || on(you, 'freeze') || !you.alive) return false
+    if (!ultReady()) {
+      sfx.deny()
+      hooks.toast(`${ultSpec().name} is charging: deal damage to fill it (${Math.floor((ult / ULTIMATE.charge) * 100)}%)`, 'bad')
+      return false
+    }
+    if (now < ultBusyUntil) return false
+    const type = weapon().type
+    const U = ultSpec()
+    const color = kitOf().color
+    if (type === 'bow') {
+      // where the crosshair meets the world (within 40 m), on the ground there
+      const aim = playerAim()
+      camera.getWorldPosition(camPos)
+      const f = segmentClear(camPos.x, camPos.y, camPos.z, camPos.x + aim.dir.x * 40, camPos.y + aim.dir.y * 40, camPos.z + aim.dir.z * 40)
+      const d = Math.max(3, f * 40)
+      const x = camPos.x + aim.dir.x * d
+      const z = camPos.z + aim.dir.z * d
+      const g = world.groundY(Math.floor(x), Math.floor(z), camPos.y + aim.dir.y * d + 1.5)
+      effects.arrowRain(you, { x, y: g ?? player.position.y, z }, U)
+    } else if (type === 'axe') effects.slam(you, { radius: U.radius, damage: U.damage, kb: 1.8, up: 1.8, slow: U.slow })
+    else if (type === 'stick') effects.slam(you, { radius: U.radius, damage: U.damage, kb: U.kb, up: 1.6 })
+    else if (type === 'fist') effects.flurry(you, U, color)
+    else effects.whirlwind(you, U, color)
+    ult = 0
+    ultBusyUntil = now + 1.5
+    sfx.ultimate()
+    hooks.viewmodel.swing()
+    swingCount = (swingCount + 1) & 255
+    effects.fx.killBurst(you.pos.x, you.pos.y, you.pos.z, kitColor(), false)
+    hooks.feed(`${nameHtml(you)} <span style="color:${color}">unleashed ${esc(U.name)}!</span>`)
+    lastAttackAt = now
+    if (you.protectedUntil > now) you.protectedUntil = 0
+    return true
   }
   // right click / tap the selected slot again: use the shop item in your hand
   function useItem() {
@@ -1027,6 +1170,22 @@ export function createCombat(scene, arena, camera, hooks) {
         case 'rebirth':
           fx.rebirth(m.at.x, m.at.y, m.at.z)
           break
+        case 'gust':
+          effects.fx.gust(m.from.x, m.from.y, m.from.z, m.dir.x, m.dir.z, Math.min(12, m.len ?? 7))
+          break
+        case 'rocket':
+          effects.fx.firework(m.at.x, m.at.y + 0.4, m.at.z)
+          effects.fx.explosion(m.at.x, m.at.y, m.at.z, 1.2)
+          if (resolveKey(m.owner)) effects.trail(owner, 1.1)
+          break
+        case 'whirl':
+          if (resolveKey(m.owner)) effects.whirlwind(owner, { ...ULTIMATE.sword, time: Math.min(3, m.time ?? 1.4), ghost: true }, typeof m.color === 'string' && /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : '#ffffff')
+          break
+        case 'killfx': {
+          const c = typeof m.color === 'string' && /^#[0-9a-f]{6}$/i.test(m.color) ? new Color(m.color) : null
+          effects.fx.killBurst(m.at.x, m.at.y, m.at.z, c, !!m.big)
+          break
+        }
       }
     } catch (err) {
       if (import.meta.env.DEV) console.warn('[fx] bad replay', m, err)
@@ -1034,8 +1193,9 @@ export function createCombat(scene, arena, camera, hooks) {
   })
 
   window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyF' || e.repeat || e.target instanceof HTMLInputElement) return
-    api.abilityDown()
+    if (e.repeat || e.target instanceof HTMLInputElement) return
+    if (e.code === 'KeyF') api.abilityDown()
+    else if (e.code === 'KeyQ' && !document.body.classList.contains('kits-open')) api.ultimate()
   })
   window.addEventListener('keyup', (e) => {
     if (e.code === 'KeyF') api.abilityUp()
@@ -1056,14 +1216,23 @@ export function createCombat(scene, arena, camera, hooks) {
   function equip() {
     const w = weapon()
     arrowsLeft = w.type === 'bow' ? w.arrows : 0
-    equippedKit = state.kit
+    equippedKit = activeKitId()
     you.kit = kitOf()
     you.armor = you.kit.armor
     abilities.reset(you)
+    ult = 0
+    ultBusyUntil = 0
+    // borrowed while already fighting: this life is the one it lasts for
+    if (state.borrow && !state.borrow.used && you.alive && inArena()) {
+      state.borrow.used = true
+      changed()
+    }
     syncHotbar()
+    const tier = tierNow()
+    hooks.viewmodel.setGlow?.(tier >= 3 ? you.kit.color : null)
   }
   onChange(() => {
-    if (state.kit !== equippedKit) queueMicrotask(equip)
+    if (activeKitId() !== equippedKit) queueMicrotask(equip)
   })
 
   // --- per-frame player state: statuses, movement powers, hunger, falls ---------------------------------
@@ -1128,7 +1297,7 @@ export function createCombat(scene, arena, camera, hooks) {
     if (!k) return null
     if (hasKitShield()) return { icon: k.icon, name: 'Shield (hold)', cd: on(you, 'shieldBroken') ? (you.status.shieldBroken - t) / 5 : 0, count: null, active: you.blocking }
     if (!a) return null
-    const [name, icon] = ABILITY_INFO[a.type] ?? [k.name, k.icon]
+    const [name, icon] = abilityInfo(a)
     const cd = t < you.abilityReady ? (you.abilityReady - t) / a.cooldown : 0
     const label = a.type === 'potion' ? potionLabel(you.potionNext) : name
     return { icon: a.type === 'potion' ? ['potion', 'potion_purple', 'potion_green'][you.potionNext % 3] : icon, name: label, cd: Math.min(1, cd), count: you.ammo, active: false }
@@ -1183,6 +1352,8 @@ export function createCombat(scene, arena, camera, hooks) {
     abilityUp() {
       held.ability = false
     },
+    // Q / the touch ULT button
+    ultimate: () => useUltimate(),
     // touch: tapping the selected hotbar slot again uses it (hold for a shop shield)
     slotDown() {
       if (shopShieldSelected()) held.slot = true
@@ -1206,6 +1377,12 @@ export function createCombat(scene, arena, camera, hooks) {
     },
     onLand() {
       you.alive = true
+      // a borrowed kit is now in use: it lasts until this life ends
+      if (state.borrow && !state.borrow.used) {
+        state.borrow.used = true
+        changed()
+        hooks.toast(`${state.borrow.kind === 'trial' ? 'Kit of the Day' : 'Rented kit'}: ${kitOf().name} for this life. Have fun!`, 'good')
+      }
       you.protectedUntil = now + COMBAT.spawnProtect
       you.invulnUntil = 0
       fallPeak = player.position.y
@@ -1227,6 +1404,7 @@ export function createCombat(scene, arena, camera, hooks) {
       if (!duel) {
         state.killstreak = 0
         changed()
+        endBorrowed()
       }
       return { killer: killer?.name ?? null, life: { ...life }, big: deathTitle(killer, cause) }
     },
@@ -1256,6 +1434,7 @@ export function createCombat(scene, arena, camera, hooks) {
       lockLeft: () => Math.max(0, lockedUntil - now),
     },
     onLobby() {
+      if (state.borrow?.used) endBorrowed()
       you.alive = false
       drawing = false
       held.right = held.ability = held.slot = false
@@ -1283,7 +1462,7 @@ export function createCombat(scene, arena, camera, hooks) {
       if (inputState.sprint) f |= 128
       const sel = selectedItem()
       const item = state.selected === 0 ? weapon().item ?? '' : sel ? itemIcon(sel.id) : ''
-      return { flags: f, swing: swingCount, kit: state.kit, item }
+      return { flags: f, swing: swingCount, kit: activeKitId(), item }
     },
     update(dt, t, viewportH, active) {
       now = t
@@ -1325,6 +1504,12 @@ export function createCombat(scene, arena, camera, hooks) {
       const view = arenaNow ? abilityView(t) : null
       hud.ability(view)
       hooks.touch?.setAbility(view)
+      // the ultimate meter (Q / ULT)
+      const uv = arenaNow && you.alive ? { k: ult / ULTIMATE.charge, ready: ultReady(), name: ultSpec().name, icon: weapon().item ?? 'heal_green', color: kitOf().color } : null
+      hud.ult(uv)
+      hooks.touch?.setUlt?.(uv)
+      // Diamond mastery: glints around you while you fight
+      if (arenaNow && you.alive && !you.invisible && tierNow() >= 4 && rr() < dt * 10) fx.aura(player.position.x, player.position.y, player.position.z, kitColor())
       sparks.update(dt, camera, viewportH)
       chips.update(dt, camera, viewportH)
       puffs.update(dt, camera, viewportH)
